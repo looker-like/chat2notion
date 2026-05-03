@@ -1,4 +1,4 @@
-﻿export const RICH_TEXT_CHUNK_LIMIT = 2000;
+export const RICH_TEXT_CHUNK_LIMIT = 2000;
 export const MAX_RICH_TEXT_CHUNKS = 90;
 
 export function splitRichText(text: string): string[] {

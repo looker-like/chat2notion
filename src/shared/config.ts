@@ -1,4 +1,4 @@
-﻿export const CONFIG_STORAGE_KEY = "chat2notionConfig";
+export const CONFIG_STORAGE_KEY = "chat2notionConfig";
 export const SYNCED_MESSAGES_STORAGE_KEY = "chat2notionSyncedMessages";
 export const NOTION_VERSION = "2026-03-11";
 
@@ -49,6 +49,7 @@ export type RuntimeRequest =
 
 export type RuntimeResponse =
   | { ok: true; config: Chat2NotionConfig }
+  | { ok: true; message: string; dataSourceId?: string }
   | { ok: true; synced: boolean }
   | SyncResponse;
 

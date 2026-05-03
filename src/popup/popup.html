@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
@@ -8,9 +8,55 @@
   </head>
   <body>
     <main class="shell">
-      <h1>Chat2Notion</h1>
-      <p id="status">Scaffold ready.</p>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">ChatGPT to Notion</p>
+          <h1>Chat2Notion</h1>
+        </div>
+        <span id="connectionBadge" class="badge">Not configured</span>
+      </header>
+
+      <section class="panel">
+        <label class="field">
+          <span>Notion API key</span>
+          <div class="secret-row">
+            <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="secret_...">
+            <button id="toggleSecret" type="button" class="ghost">Show</button>
+          </div>
+        </label>
+
+        <label class="field">
+          <span>Database ID</span>
+          <input id="databaseId" type="text" autocomplete="off" spellcheck="false" placeholder="Notion database URL or ID">
+        </label>
+
+        <label class="switch-row">
+          <input id="autoSyncEnabled" type="checkbox">
+          <span>
+            <strong>Auto-sync new ChatGPT answers</strong>
+            <small>Manual buttons remain available on each answer.</small>
+          </span>
+        </label>
+      </section>
+
+      <section class="panel compact">
+        <h2>Required Notion properties</h2>
+        <p>Name, Question, Answer, AI, Source URL, Synced At, Message ID, Sync Mode.</p>
+      </section>
+
+      <section class="panel compact">
+        <h2>Last sync</h2>
+        <p id="lastSync">No sync recorded yet.</p>
+      </section>
+
+      <p id="status" class="status">Loading configuration...</p>
+
+      <footer class="actions">
+        <button id="testConnection" type="button" class="secondary">Test connection</button>
+        <button id="saveConfig" type="button" class="primary">Save</button>
+      </footer>
     </main>
+
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>

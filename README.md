@@ -1,4 +1,4 @@
-﻿# Chat2Notion
+# Chat2Notion
 
 Manifest V3 browser extension that syncs ChatGPT question/answer pairs to a Notion database.
 
