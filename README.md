@@ -7,6 +7,7 @@ Manifest V3 browser extension that syncs ChatGPT question/answer pairs to a Noti
 - Each ChatGPT answer gets a manual `Sync to Notion` button.
 - `Auto-save chat` enables automatic Notion sync for the current ChatGPT conversation only.
 - The popup-level global auto-sync is still available, but it is intended to stay off for normal use.
+- Clicking the extension icon opens a persistent settings page so API keys and database IDs can be pasted safely.
 - Versioning starts at `0.1.xx` for small updates.
 
 ## Development

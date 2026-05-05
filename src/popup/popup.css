@@ -10,9 +10,11 @@
 }
 
 body {
-  width: 380px;
+  width: min(100%, 720px);
   min-width: 320px;
+  min-height: 100vh;
   margin: 0;
+  margin-inline: auto;
   background:
     radial-gradient(circle at 12% 0%, rgba(45, 91, 166, 0.16), transparent 34%),
     linear-gradient(145deg, #fbf7ee, #edf2f8 62%, #f6efe3);
@@ -37,7 +39,7 @@ input:disabled {
 .shell {
   display: grid;
   gap: 12px;
-  padding: 16px;
+  padding: 24px;
 }
 
 .hero {
@@ -224,7 +226,7 @@ input:focus {
 
 @media (max-width: 340px) {
   body {
-    width: 320px;
+    width: 100%;
   }
 
   .actions {

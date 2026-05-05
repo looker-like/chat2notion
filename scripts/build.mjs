@@ -35,8 +35,8 @@ async function buildManifest() {
     version: packageJson.version,
     action: {
       default_title: "Chat2Notion",
-      default_popup: "src/popup/popup.html",
     },
+    options_page: "src/popup/popup.html",
     background: {
       service_worker: "src/background/index.js",
       type: "module",
@@ -122,7 +122,11 @@ async function verifyBuildOutput() {
     throw new Error("Popup HTML output must reference compiled .js files, not .ts files.");
   }
 
-  await assertDistFileExists(manifest.action?.default_popup);
+  if (manifest.action?.default_popup) {
+    await assertDistFileExists(manifest.action.default_popup);
+  }
+
+  await assertDistFileExists(manifest.options_page);
   await assertDistFileExists(manifest.background?.service_worker);
 
   for (const contentScript of manifest.content_scripts ?? []) {

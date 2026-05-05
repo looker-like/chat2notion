@@ -4,11 +4,11 @@ export default defineManifest({
   manifest_version: 3,
   name: "Chat2Notion",
   description: "Sync ChatGPT questions and answers to a Notion database.",
-  version: "0.1.2",
+  version: "0.1.3",
   action: {
     default_title: "Chat2Notion",
-    default_popup: "src/popup/popup.html",
   },
+  options_page: "src/popup/popup.html",
   background: {
     service_worker: "src/background/index.ts",
     type: "module",
