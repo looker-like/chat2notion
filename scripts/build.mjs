@@ -35,6 +35,7 @@ async function buildManifest() {
     version: packageJson.version,
     action: {
       default_title: "Chat2Notion",
+      default_popup: "src/popup/popup.html",
     },
     options_page: "src/popup/popup.html",
     background: {
@@ -109,23 +110,30 @@ async function transpileTs(sourcePath, targetPath) {
 async function verifyBuildOutput() {
   const manifestPath = path.join(distDir, "manifest.json");
   const contentPath = path.join(distDir, "src", "content", "index.js");
+  const popupPath = path.join(distDir, "src", "popup", "popup.js");
   const popupHtmlPath = path.join(distDir, "src", "popup", "popup.html");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   const content = await fs.readFile(contentPath, "utf8");
+  const popup = await fs.readFile(popupPath, "utf8");
   const popupHtml = await fs.readFile(popupHtmlPath, "utf8");
 
   if (/^\s*(import|export)\s/m.test(content)) {
     throw new Error("Content script output must not contain top-level import/export.");
   }
 
+  if (/^\s*(import|export)\s/m.test(popup)) {
+    throw new Error("Popup output must not contain top-level import/export.");
+  }
+
   if (popupHtml.includes(".ts")) {
     throw new Error("Popup HTML output must reference compiled .js files, not .ts files.");
   }
 
-  if (manifest.action?.default_popup) {
-    await assertDistFileExists(manifest.action.default_popup);
+  if (popupHtml.includes('type="module"')) {
+    throw new Error("Popup HTML output should use a classic script to avoid module-only runtime failures.");
   }
 
+  await assertDistFileExists(manifest.action?.default_popup);
   await assertDistFileExists(manifest.options_page);
   await assertDistFileExists(manifest.background?.service_worker);
 

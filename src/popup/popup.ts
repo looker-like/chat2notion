@@ -1,14 +1,27 @@
-import { type Chat2NotionConfig, type RuntimeResponse } from "../shared/config";
-
+(() => {
 const apiKeyInput = query<HTMLInputElement>("#apiKey");
 const databaseIdInput = query<HTMLInputElement>("#databaseId");
 const autoSyncInput = query<HTMLInputElement>("#autoSyncEnabled");
 const toggleSecretButton = query<HTMLButtonElement>("#toggleSecret");
+const openSettingsPageButton = query<HTMLButtonElement>("#openSettingsPage");
 const testConnectionButton = query<HTMLButtonElement>("#testConnection");
 const saveConfigButton = query<HTMLButtonElement>("#saveConfig");
 const statusNode = query<HTMLParagraphElement>("#status");
 const lastSyncNode = query<HTMLParagraphElement>("#lastSync");
 const connectionBadge = query<HTMLSpanElement>("#connectionBadge");
+
+interface Chat2NotionConfig {
+  apiKey: string;
+  databaseId: string;
+  dataSourceId: string;
+  autoSyncEnabled: boolean;
+  lastSyncStatus: { tone: "idle" | "success" | "error" | "pending"; message: string; at: string } | null;
+}
+
+type RuntimeResponse =
+  | { ok: true; config: Chat2NotionConfig }
+  | { ok: true; message?: string }
+  | { ok: false; message: string };
 
 let loadedConfig: Chat2NotionConfig | null = null;
 
@@ -37,6 +50,10 @@ function bindEvents(): void {
     const visible = apiKeyInput.type === "text";
     apiKeyInput.type = visible ? "password" : "text";
     toggleSecretButton.textContent = visible ? "Show" : "Hide";
+  });
+
+  openSettingsPageButton.addEventListener("click", () => {
+    void chrome.runtime.openOptionsPage();
   });
 
   saveConfigButton.addEventListener("click", () => {
@@ -141,6 +158,7 @@ function collectConfigInput(): Pick<Chat2NotionConfig, "apiKey" | "databaseId" |
 
 function setBusy(isBusy: boolean): void {
   saveConfigButton.disabled = isBusy;
+  openSettingsPageButton.disabled = isBusy;
   testConnectionButton.disabled = isBusy;
   toggleSecretButton.disabled = isBusy;
   apiKeyInput.disabled = isBusy;
@@ -179,5 +197,4 @@ function query<T extends Element>(selector: string): T {
 
   return node;
 }
-
-void loadedConfig;
+})();

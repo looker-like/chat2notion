@@ -1,3 +1,4 @@
+(() => {
 const CONTROL_CLASS = "c2n-control";
 const CONTROL_ATTRIBUTE = "data-chat2notion-control";
 const ASSISTANT_PROCESSED_ATTRIBUTE = "data-chat2notion-processed";
@@ -528,3 +529,4 @@ function ensureStyles(): void {
 `;
   document.documentElement.append(style);
 }
+})();

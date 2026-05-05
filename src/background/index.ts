@@ -45,10 +45,6 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
-chrome.action.onClicked.addListener(() => {
-  void chrome.runtime.openOptionsPage();
-});
-
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   if (!isRuntimeRequest(message)) {
     return false;

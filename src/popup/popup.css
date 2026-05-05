@@ -10,9 +10,8 @@
 }
 
 body {
-  width: min(100%, 720px);
+  width: min(100%, 420px);
   min-width: 320px;
-  min-height: 100vh;
   margin: 0;
   margin-inline: auto;
   background:
@@ -39,7 +38,7 @@ input:disabled {
 .shell {
   display: grid;
   gap: 12px;
-  padding: 24px;
+  padding: 16px;
 }
 
 .hero {
@@ -184,6 +183,10 @@ input:focus {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 9px;
+}
+
+.actions .wide {
+  grid-column: 1 / -1;
 }
 
 .primary,

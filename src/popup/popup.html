@@ -10,7 +10,7 @@
     <main class="shell">
       <header class="hero">
         <div>
-          <p class="eyebrow">Persistent settings page</p>
+          <p class="eyebrow">ChatGPT to Notion</p>
           <h1>Chat2Notion</h1>
         </div>
         <span id="connectionBadge" class="badge">Not configured</span>
@@ -52,11 +52,12 @@
       <p id="status" class="status">Loading configuration...</p>
 
       <footer class="actions">
+        <button id="openSettingsPage" type="button" class="secondary wide">Open full settings page</button>
         <button id="testConnection" type="button" class="secondary">Test connection</button>
         <button id="saveConfig" type="button" class="primary">Save</button>
       </footer>
     </main>
 
-    <script type="module" src="./popup.ts"></script>
+    <script src="./popup.ts"></script>
   </body>
 </html>
