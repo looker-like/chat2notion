@@ -11,7 +11,7 @@ import {
   type SyncStatus,
   SYNCED_MESSAGES_STORAGE_KEY,
 } from "../shared/config";
-import { assertRichTextFitsNotion, createTitleFromQuestion, splitRichText } from "../shared/text";
+import { createTitleFromQuestion, MAX_RICH_TEXT_CHUNKS, splitRichText } from "../shared/text";
 
 const NOTION_API_BASE = "https://api.notion.com/v1";
 const REQUIRED_PROPERTIES = {
@@ -27,6 +27,9 @@ const REQUIRED_PROPERTIES = {
 const DEFAULT_DATABASE_TITLE = "Chat2Notion";
 const DEFAULT_DATA_SOURCE_TITLE = "Synced Chats";
 const NOTION_REQUEST_BODY_LIMIT_BYTES = 500_000;
+const NOTION_SAFE_REQUEST_BODY_LIMIT_BYTES = 420_000;
+const PROPERTY_PREVIEW_CHARACTER_LIMIT = 12_000;
+const MARKDOWN_CHUNK_CONTENT_LIMIT_BYTES = 340_000;
 
 type RequiredPropertyName = keyof typeof REQUIRED_PROPERTIES;
 type NotionPropertyType = (typeof REQUIRED_PROPERTIES)[RequiredPropertyName];
@@ -211,30 +214,21 @@ async function syncPair(payload: ChatPairPayload): Promise<RuntimeResponse> {
 }
 
 async function createNotionPage(apiKey: string, dataSourceId: string, payload: ChatPairPayload): Promise<NotionPageResponse> {
-  const body = {
-    parent: { data_source_id: dataSourceId },
-    properties: {
-      Name: {
-        title: [{ type: "text", text: { content: createTitleFromQuestion(payload.question) } }],
-      },
-      Question: { rich_text: toRichText(payload.question) },
-      Answer: { rich_text: toRichText(payload.answer) },
-      AI: { select: { name: "ChatGPT" } },
-      "Source URL": { url: payload.sourceUrl },
-      "Synced At": { date: { start: new Date().toISOString() } },
-      "Message ID": { rich_text: toRichText(payload.messageId) },
-      "Sync Mode": { select: { name: payload.syncMode } },
-    },
-    markdown: createPageMarkdownBackup(payload),
-  };
-  const bodyJson = JSON.stringify(body);
+  const bodyJson = withPageParent(createPageRequestBodyJson(payload), dataSourceId);
 
-  assertNotionRequestFits(bodyJson);
+  assertNotionRequestFits(bodyJson, "Notion page property request");
 
-  return notionFetch<NotionPageResponse>(apiKey, "/pages", {
+  const page = await notionFetch<NotionPageResponse>(apiKey, "/pages", {
     method: "POST",
     body: bodyJson,
   });
+
+  if (!page.id) {
+    throw new Error("Notion created a page but did not return its ID.");
+  }
+
+  await appendPageMarkdownBackup(apiKey, page.id, createPageMarkdownBackup(payload));
+  return page;
 }
 
 async function ensureChat2NotionTarget(apiKey: string, databaseId: string): Promise<NotionDataSourceInfo> {
@@ -550,6 +544,60 @@ function toNotionText(content: string): Array<{ type: "text"; text: { content: s
   return [{ type: "text", text: { content } }];
 }
 
+function createPageRequestBodyJson(payload: ChatPairPayload): string {
+  const fullBodyJson = JSON.stringify(createPageRequestBody(payload, false));
+
+  if (getByteLength(fullBodyJson) <= NOTION_SAFE_REQUEST_BODY_LIMIT_BYTES && canUseFullPropertyValue(payload.question) && canUseFullPropertyValue(payload.answer)) {
+    return fullBodyJson;
+  }
+
+  return JSON.stringify(createPageRequestBody(payload, true));
+}
+
+function createPageRequestBody(payload: ChatPairPayload, usePropertyPreview: boolean): Record<string, unknown> {
+  return {
+    parent: { data_source_id: "" },
+    properties: {
+      Name: {
+        title: [{ type: "text", text: { content: createTitleFromQuestion(payload.question) } }],
+      },
+      Question: { rich_text: toRichText(toPropertyValue(payload.question, usePropertyPreview)) },
+      Answer: { rich_text: toRichText(toPropertyValue(payload.answer, usePropertyPreview)) },
+      AI: { select: { name: "ChatGPT" } },
+      "Source URL": { url: payload.sourceUrl },
+      "Synced At": { date: { start: new Date().toISOString() } },
+      "Message ID": { rich_text: toRichText(payload.messageId) },
+      "Sync Mode": { select: { name: payload.syncMode } },
+    },
+  };
+}
+
+function withPageParent(bodyJson: string, dataSourceId: string): string {
+  const body = JSON.parse(bodyJson) as { parent?: unknown };
+  body.parent = { data_source_id: dataSourceId };
+  return JSON.stringify(body);
+}
+
+async function appendPageMarkdownBackup(apiKey: string, pageId: string, markdown: string): Promise<void> {
+  const chunks = splitMarkdownForNotion(markdown);
+
+  for (const chunk of chunks) {
+    const bodyJson = JSON.stringify({
+      type: "insert_content",
+      insert_content: {
+        content: chunk,
+      },
+    });
+
+    assertNotionRequestFits(bodyJson, "Notion markdown backup chunk");
+
+    await notionFetch<unknown>(apiKey, `/pages/${encodeURIComponent(pageId)}/markdown`, {
+      method: "PATCH",
+      body: bodyJson,
+    });
+  }
+}
+
 function createPageMarkdownBackup(payload: ChatPairPayload): string {
   const question = normalizeMarkdownBackup(payload.questionMarkdown || payload.question);
   const answer = normalizeMarkdownBackup(payload.answerMarkdown || payload.answer);
@@ -580,14 +628,125 @@ function escapeMarkdownUrl(value: string): string {
   return value.replace(/\)/g, "%29");
 }
 
-function assertNotionRequestFits(bodyJson: string): void {
-  const size = new TextEncoder().encode(bodyJson).length;
+function canUseFullPropertyValue(value: string): boolean {
+  return splitRichText(value).length <= MAX_RICH_TEXT_CHUNKS;
+}
+
+function toPropertyValue(value: string, usePreview: boolean): string {
+  if (!usePreview && canUseFullPropertyValue(value)) {
+    return value;
+  }
+
+  const preview = value.slice(0, PROPERTY_PREVIEW_CHARACTER_LIMIT).trimEnd();
+  const suffix = value.length > preview.length ? "\n\n[Full content is saved in the Notion page body.]" : "";
+  return `${preview}${suffix}`;
+}
+
+function splitMarkdownForNotion(markdown: string): string[] {
+  const units = splitMarkdownUnits(markdown);
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const unit of units) {
+    if (getByteLength(unit) > MARKDOWN_CHUNK_CONTENT_LIMIT_BYTES) {
+      flushMarkdownChunk(chunks, current);
+      current = "";
+      chunks.push(...splitTextByByteLimit(unit, MARKDOWN_CHUNK_CONTENT_LIMIT_BYTES));
+      continue;
+    }
+
+    const candidate = current ? `${current}\n\n${unit}` : unit;
+
+    if (getByteLength(candidate) > MARKDOWN_CHUNK_CONTENT_LIMIT_BYTES) {
+      flushMarkdownChunk(chunks, current);
+      current = unit;
+    } else {
+      current = candidate;
+    }
+  }
+
+  flushMarkdownChunk(chunks, current);
+  return chunks.length > 0 ? chunks : ["No content captured."];
+}
+
+function splitMarkdownUnits(markdown: string): string[] {
+  const units: string[] = [];
+  const lines = normalizeMarkdownBackup(markdown).split("\n");
+  let current: string[] = [];
+  let inFence = false;
+
+  for (const line of lines) {
+    if (line.trimStart().startsWith("```")) {
+      inFence = !inFence;
+    }
+
+    if (!inFence && !line.trim()) {
+      flushMarkdownUnit(units, current);
+      current = [];
+      continue;
+    }
+
+    current.push(line);
+  }
+
+  flushMarkdownUnit(units, current);
+  return units;
+}
+
+function splitTextByByteLimit(value: string, byteLimit: number): string[] {
+  const chunks: string[] = [];
+  const encoder = new TextEncoder();
+  let current = "";
+  let currentBytes = 0;
+
+  for (const character of value) {
+    const characterBytes = encoder.encode(character).length;
+
+    if (current && currentBytes + characterBytes > byteLimit) {
+      chunks.push(current);
+      current = "";
+      currentBytes = 0;
+    }
+
+    current += character;
+    currentBytes += characterBytes;
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks;
+}
+
+function flushMarkdownUnit(units: string[], lines: string[]): void {
+  const unit = lines.join("\n").trim();
+
+  if (unit) {
+    units.push(unit);
+  }
+}
+
+function flushMarkdownChunk(chunks: string[], chunk: string): void {
+  const normalized = chunk.trim();
+
+  if (normalized) {
+    chunks.push(normalized);
+  }
+}
+
+function assertNotionRequestFits(bodyJson: string, label: string): void {
+  const size = getByteLength(bodyJson);
 
   if (size > NOTION_REQUEST_BODY_LIMIT_BYTES) {
     throw new Error(
-      `Notion request is too large after adding the page content backup (${Math.ceil(size / 1024)}KB, limit 489KB). Shorten the question or answer before syncing.`,
+      `${label} is too large (${Math.ceil(size / 1024)}KB, limit 489KB). Chat2Notion could not safely split this request.`,
     );
   }
+}
+
+function getByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
 }
 
 function assertSyncPayload(payload: ChatPairPayload): void {
@@ -602,9 +761,6 @@ function assertSyncPayload(payload: ChatPairPayload): void {
   if (!payload.answer.trim()) {
     throw new Error("Cannot sync because the answer is empty.");
   }
-
-  assertRichTextFitsNotion(payload.question, "Question");
-  assertRichTextFitsNotion(payload.answer, "Answer");
 }
 
 async function readConfig(): Promise<Chat2NotionConfig> {
