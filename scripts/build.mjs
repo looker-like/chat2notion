@@ -5,6 +5,7 @@ import ts from "typescript";
 const root = process.cwd();
 const srcDir = path.join(root, "src");
 const distDir = path.join(root, "dist");
+const packageJson = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8"));
 
 async function main() {
   await cleanDist();
@@ -30,7 +31,7 @@ async function buildManifest() {
     manifest_version: 3,
     name: "Chat2Notion",
     description: "Sync ChatGPT questions and answers to a Notion database.",
-    version: "0.1.0",
+    version: packageJson.version,
     action: {
       default_title: "Chat2Notion",
       default_popup: "src/popup/popup.html",

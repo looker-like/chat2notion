@@ -1,4 +1,4 @@
-import { type ChatPairPayload, type RuntimeResponse } from "../shared/config";
+import { CONVERSATION_AUTO_SYNC_STORAGE_KEY, type ChatPairPayload, type RuntimeResponse } from "../shared/config";
 
 const CONTROL_CLASS = "c2n-control";
 const CONTROL_ATTRIBUTE = "data-chat2notion-control";
@@ -19,10 +19,13 @@ interface ChatPair {
 interface ControlNodes {
   root: HTMLDivElement;
   button: HTMLButtonElement;
+  autoButton: HTMLButtonElement;
   status: HTMLSpanElement;
 }
 
 let autoSyncEnabled = false;
+let conversationAutoSyncEnabled = false;
+let conversationKey = createConversationKey();
 let scanTimer: number | null = null;
 const autoSyncTimers = new Map<string, number>();
 
@@ -31,6 +34,7 @@ void initialize();
 async function initialize(): Promise<void> {
   ensureStyles();
   await refreshConfig();
+  await refreshConversationAutoSync();
   scanPage();
   observeChat();
 
@@ -41,6 +45,24 @@ async function initialize(): Promise<void> {
 
     void refreshConfig().then(() => scheduleScan(100));
   });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes[CONVERSATION_AUTO_SYNC_STORAGE_KEY]) {
+      return;
+    }
+
+    void refreshConversationAutoSync().then(() => scheduleScan(100));
+  });
+
+  window.addEventListener("popstate", () => {
+    void handleLocationChanged();
+  });
+
+  window.setInterval(() => {
+    if (conversationKey !== createConversationKey()) {
+      void handleLocationChanged();
+    }
+  }, 1000);
 }
 
 async function refreshConfig(): Promise<void> {
@@ -49,6 +71,18 @@ async function refreshConfig(): Promise<void> {
   if (response.ok && "config" in response) {
     autoSyncEnabled = response.config.autoSyncEnabled;
   }
+}
+
+async function refreshConversationAutoSync(): Promise<void> {
+  const stored = await chrome.storage.local.get(CONVERSATION_AUTO_SYNC_STORAGE_KEY);
+  const state = readConversationAutoSyncState(stored[CONVERSATION_AUTO_SYNC_STORAGE_KEY]);
+  conversationAutoSyncEnabled = Boolean(state[conversationKey]);
+}
+
+async function handleLocationChanged(): Promise<void> {
+  conversationKey = createConversationKey();
+  await refreshConversationAutoSync();
+  scheduleScan(100);
 }
 
 function observeChat(): void {
@@ -81,7 +115,7 @@ function scanPage(): void {
 
     ensureControl(pair);
 
-    if (autoSyncEnabled) {
+    if (autoSyncEnabled || conversationAutoSyncEnabled) {
       scheduleAutoSync(pair);
     }
   });
@@ -179,6 +213,10 @@ function ensureControl(pair: ChatPair): void {
   control.button.onclick = () => {
     void syncPair(pair, control, "manual");
   };
+  control.autoButton.onclick = () => {
+    void toggleConversationAutoSync(pair, control);
+  };
+  syncConversationAutoButton(control);
 
   void initializeSyncedState(pair.messageId, control);
 }
@@ -193,15 +231,21 @@ function createControl(pair: ChatPair): ControlNodes {
   button.type = "button";
   button.textContent = "Sync to Notion";
 
+  const autoButton = document.createElement("button");
+  autoButton.type = "button";
+  autoButton.dataset.role = "conversation-auto-sync";
+
   const status = document.createElement("span");
   status.textContent = "";
 
-  root.append(button, status);
-  return { root, button, status };
+  root.append(button, autoButton, status);
+  return { root, button, autoButton, status };
 }
 
 function readControl(root: HTMLDivElement): ControlNodes {
-  const button = root.querySelector<HTMLButtonElement>("button") ?? document.createElement("button");
+  const button = root.querySelector<HTMLButtonElement>("button:not([data-role='conversation-auto-sync'])") ?? document.createElement("button");
+  const autoButton =
+    root.querySelector<HTMLButtonElement>("button[data-role='conversation-auto-sync']") ?? document.createElement("button");
   const status = root.querySelector<HTMLSpanElement>("span") ?? document.createElement("span");
 
   if (!button.parentElement) {
@@ -210,11 +254,17 @@ function readControl(root: HTMLDivElement): ControlNodes {
     root.append(button);
   }
 
+  if (!autoButton.parentElement) {
+    autoButton.type = "button";
+    autoButton.dataset.role = "conversation-auto-sync";
+    root.append(autoButton);
+  }
+
   if (!status.parentElement) {
     root.append(status);
   }
 
-  return { root, button, status };
+  return { root, button, autoButton, status };
 }
 
 function findInsertionTarget(assistant: HTMLElement): HTMLElement {
@@ -228,6 +278,57 @@ async function initializeSyncedState(messageId: string, control: ControlNodes): 
   if (response.ok && "synced" in response && response.synced) {
     setControlState(control, "synced", "Synced");
   }
+}
+
+async function toggleConversationAutoSync(pair: ChatPair, control: ControlNodes): Promise<void> {
+  const nextEnabled = !conversationAutoSyncEnabled;
+  await setConversationAutoSync(nextEnabled);
+  conversationAutoSyncEnabled = nextEnabled;
+  syncAllConversationAutoButtons();
+
+  if (!nextEnabled) {
+    setControlStatus(control, "Conversation auto-save off.");
+    return;
+  }
+
+  setControlStatus(control, "Conversation auto-save on. Future answers will sync.");
+
+  if (control.root.dataset.state !== "synced") {
+    await syncPair(pair, control, "auto");
+  }
+
+  scheduleScan(100);
+}
+
+async function setConversationAutoSync(enabled: boolean): Promise<void> {
+  const stored = await chrome.storage.local.get(CONVERSATION_AUTO_SYNC_STORAGE_KEY);
+  const state = readConversationAutoSyncState(stored[CONVERSATION_AUTO_SYNC_STORAGE_KEY]);
+
+  if (enabled) {
+    state[conversationKey] = {
+      enabled: true,
+      sourceUrl: location.href,
+      updatedAt: new Date().toISOString(),
+    };
+  } else {
+    delete state[conversationKey];
+  }
+
+  await chrome.storage.local.set({ [CONVERSATION_AUTO_SYNC_STORAGE_KEY]: state });
+}
+
+function syncAllConversationAutoButtons(): void {
+  document.querySelectorAll<HTMLDivElement>(`[${CONTROL_ATTRIBUTE}]`).forEach((root) => {
+    syncConversationAutoButton(readControl(root));
+  });
+}
+
+function syncConversationAutoButton(control: ControlNodes): void {
+  control.autoButton.textContent = conversationAutoSyncEnabled ? "Auto-save chat: On" : "Auto-save chat";
+  control.autoButton.dataset.enabled = conversationAutoSyncEnabled ? "true" : "false";
+  control.autoButton.title = conversationAutoSyncEnabled
+    ? "Disable automatic Notion sync for this ChatGPT conversation."
+    : "Enable automatic Notion sync for this ChatGPT conversation.";
 }
 
 function scheduleAutoSync(pair: ChatPair): void {
@@ -295,6 +396,11 @@ function setControlState(control: ControlNodes, state: "idle" | "pending" | "syn
   control.status.textContent = message;
   control.button.disabled = state === "pending" || state === "synced";
   control.button.textContent = state === "synced" ? "Synced" : state === "pending" ? "Syncing" : "Sync to Notion";
+  control.autoButton.disabled = state === "pending";
+}
+
+function setControlStatus(control: ControlNodes, message: string): void {
+  control.status.textContent = message;
 }
 
 function isAnswerStillStreaming(assistant: HTMLElement): boolean {
@@ -332,6 +438,31 @@ function normalizeText(value: string): string {
   return value.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function createConversationKey(): string {
+  const url = new URL(location.href);
+  return `${url.origin}${url.pathname.replace(/\/$/, "") || "/new-chat"}`;
+}
+
+function readConversationAutoSyncState(value: unknown): Record<string, { enabled: true; sourceUrl: string; updatedAt: string }> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, { enabled: true; sourceUrl: string; updatedAt: string }] => {
+      const item = entry[1];
+      return (
+        typeof item === "object" &&
+        item !== null &&
+        !Array.isArray(item) &&
+        (item as { enabled?: unknown }).enabled === true &&
+        typeof (item as { sourceUrl?: unknown }).sourceUrl === "string" &&
+        typeof (item as { updatedAt?: unknown }).updatedAt === "string"
+      );
+    }),
+  );
+}
+
 function isInsideChat2NotionControl(node: HTMLElement): boolean {
   return Boolean(node.closest(`[${CONTROL_ATTRIBUTE}]`));
 }
@@ -362,6 +493,16 @@ function ensureStyles(): void {
 .${CONTROL_CLASS} button:hover:not(:disabled) {
   border-color: #5179bd;
   background: #eef5ff;
+}
+.${CONTROL_CLASS} button[data-role="conversation-auto-sync"] {
+  border-color: #d7b56d;
+  color: #5a3d08;
+  background: #fff8e8;
+}
+.${CONTROL_CLASS} button[data-role="conversation-auto-sync"][data-enabled="true"] {
+  border-color: #2f7a4c;
+  color: #155a32;
+  background: #eaf8ef;
 }
 .${CONTROL_CLASS} button:disabled {
   cursor: default;

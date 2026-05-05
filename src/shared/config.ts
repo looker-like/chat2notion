@@ -1,5 +1,6 @@
 export const CONFIG_STORAGE_KEY = "chat2notionConfig";
 export const SYNCED_MESSAGES_STORAGE_KEY = "chat2notionSyncedMessages";
+export const CONVERSATION_AUTO_SYNC_STORAGE_KEY = "chat2notionConversationAutoSync";
 export const NOTION_VERSION = "2026-03-11";
 
 export interface Chat2NotionConfig {
