@@ -101,6 +101,7 @@ async function saveConfig(): Promise<void> {
     });
 
     if (!response.ok) {
+      await reloadConfig();
       throw new Error(response.message);
     }
 
@@ -127,6 +128,7 @@ async function testConnection(): Promise<void> {
     });
 
     if (!response.ok) {
+      await reloadConfig();
       throw new Error(response.message);
     }
 

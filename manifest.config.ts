@@ -4,7 +4,7 @@ export default defineManifest({
   manifest_version: 3,
   name: "Chat2Notion",
   description: "Sync ChatGPT questions and answers to a Notion database.",
-  version: "0.1.5",
+  version: "0.1.6",
   action: {
     default_title: "Chat2Notion",
     default_popup: "src/popup/popup.html",
