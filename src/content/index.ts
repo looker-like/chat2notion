@@ -242,7 +242,7 @@ function ensureControl(pair: ChatPair): void {
 
   control.root.dataset.messageId = pair.messageId;
   control.button.onclick = () => {
-    void syncPair(pair, control, "manual");
+    void handleManualSync(pair, control);
   };
   control.autoButton.onclick = () => {
     void toggleConversationAutoSync(pair, control);
@@ -309,6 +309,21 @@ async function initializeSyncedState(messageId: string, control: ControlNodes): 
   if (response.ok && "synced" in response && response.synced) {
     setControlState(control, "synced", "Synced");
   }
+}
+
+async function handleManualSync(pair: ChatPair, control: ControlNodes): Promise<void> {
+  if (control.root.dataset.state === "synced") {
+    const confirmed = window.confirm("This answer is already synced. Resync and overwrite the existing Notion page?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    await syncPair(pair, control, "manual", true);
+    return;
+  }
+
+  await syncPair(pair, control, "manual");
 }
 
 async function toggleConversationAutoSync(pair: ChatPair, control: ControlNodes): Promise<void> {
@@ -410,11 +425,12 @@ function scheduleAutoSync(pair: ChatPair): void {
   autoSyncTimers.set(pair.messageId, timer);
 }
 
-async function syncPair(pair: ChatPair, control: ControlNodes, syncMode: SyncMode): Promise<void> {
-  setControlState(control, "pending", syncMode === "auto" ? "Auto-syncing..." : "Syncing...");
+async function syncPair(pair: ChatPair, control: ControlNodes, syncMode: SyncMode, overwrite = false): Promise<void> {
+  setControlState(control, "pending", overwrite ? "Resyncing..." : syncMode === "auto" ? "Auto-syncing..." : "Syncing...");
 
   const response = await sendMessage({
     type: "chat2notion:syncPair",
+    overwrite,
     payload: {
       messageId: pair.messageId,
       question: pair.question,
@@ -438,8 +454,9 @@ async function syncPair(pair: ChatPair, control: ControlNodes, syncMode: SyncMod
 function setControlState(control: ControlNodes, state: "idle" | "pending" | "synced" | "error", message: string): void {
   control.root.dataset.state = state;
   control.status.textContent = message;
-  control.button.disabled = state === "pending" || state === "synced";
+  control.button.disabled = state === "pending";
   control.button.textContent = state === "synced" ? "Synced" : state === "pending" ? "Syncing" : "Sync to Notion";
+  control.button.title = state === "synced" ? "Click to resync and overwrite the existing Notion page." : "";
   control.autoButton.disabled = state === "pending";
 }
 

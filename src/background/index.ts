@@ -46,6 +46,11 @@ interface NotionPageResponse {
   id?: string;
 }
 
+interface SyncedMessageRecord {
+  syncedAt: string;
+  notionPageId: string;
+}
+
 class NotionApiError extends Error {
   constructor(
     public readonly status: number,
@@ -88,7 +93,7 @@ async function handleRuntimeRequest(message: RuntimeRequest): Promise<RuntimeRes
     case "chat2notion:isSynced":
       return { ok: true, synced: await isMessageSynced(message.messageId) };
     case "chat2notion:syncPair":
-      return syncPair(message.payload);
+      return syncPair(message.payload, Boolean(message.overwrite));
   }
 }
 
@@ -167,9 +172,11 @@ async function testConnection(input?: Pick<Chat2NotionConfig, "apiKey" | "databa
   return { ok: true, message: `Connected to Notion. ${describeTargetSetup(dataSource)}`, dataSourceId: dataSource.id };
 }
 
-async function syncPair(payload: ChatPairPayload): Promise<RuntimeResponse> {
-  if (await isMessageSynced(payload.messageId)) {
-    return { ok: true, notionPageId: "", message: "Already synced." };
+async function syncPair(payload: ChatPairPayload, overwrite: boolean): Promise<RuntimeResponse> {
+  const existingSync = await getSyncedMessage(payload.messageId);
+
+  if (existingSync && !overwrite) {
+    return { ok: true, notionPageId: existingSync.notionPageId, message: "Already synced." };
   }
 
   const config = await readConfig();
@@ -195,17 +202,24 @@ async function syncPair(payload: ChatPairPayload): Promise<RuntimeResponse> {
       });
     }
 
-    const page = await createNotionPage(config.apiKey, dataSourceId, payload);
-    await markMessageSynced(payload.messageId);
+    const targetPageId = overwrite
+      ? await resolveSyncedPageId(config.apiKey, dataSourceId, payload.messageId, existingSync?.notionPageId ?? "")
+      : "";
+    const page = targetPageId
+      ? await updateNotionPage(config.apiKey, targetPageId, payload)
+      : await createNotionPage(config.apiKey, dataSourceId, payload);
+    const notionPageId = page.id ?? targetPageId;
+
+    await markMessageSynced(payload.messageId, notionPageId);
 
     const status: SyncStatus = {
       tone: "success",
-      message: "Synced to Notion.",
+      message: targetPageId ? "Resynced to Notion." : overwrite ? "Original Notion page was not found; created a replacement." : "Synced to Notion.",
       at: new Date().toISOString(),
     };
     await updateLastSyncStatus(status);
 
-    return { ok: true, notionPageId: page.id ?? "", message: status.message };
+    return { ok: true, notionPageId, message: status.message };
   } catch (error) {
     const message = toErrorMessage(error);
     await updateLastSyncStatus({ tone: "error", message, at: new Date().toISOString() });
@@ -229,6 +243,68 @@ async function createNotionPage(apiKey: string, dataSourceId: string, payload: C
 
   await appendPageMarkdownBackup(apiKey, page.id, createPageMarkdownBackup(payload));
   return page;
+}
+
+async function updateNotionPage(apiKey: string, pageId: string, payload: ChatPairPayload): Promise<NotionPageResponse> {
+  const bodyJson = createPagePropertiesBodyJson(payload);
+
+  assertNotionRequestFits(bodyJson, "Notion page property update request");
+
+  const page = await notionFetch<NotionPageResponse>(apiKey, `/pages/${encodeURIComponent(pageId)}`, {
+    method: "PATCH",
+    body: bodyJson,
+  });
+
+  await replacePageMarkdownBackup(apiKey, page.id ?? pageId, createPageMarkdownBackup(payload));
+  return { ...page, id: page.id ?? pageId };
+}
+
+async function resolveSyncedPageId(
+  apiKey: string,
+  dataSourceId: string,
+  messageId: string,
+  storedPageId: string,
+): Promise<string> {
+  if (storedPageId && (await canAccessPage(apiKey, storedPageId))) {
+    return storedPageId;
+  }
+
+  return findSyncedPageIdByMessageId(apiKey, dataSourceId, messageId);
+}
+
+async function canAccessPage(apiKey: string, pageId: string): Promise<boolean> {
+  try {
+    await notionFetch<unknown>(apiKey, `/pages/${encodeURIComponent(pageId)}`, { method: "GET" });
+    return true;
+  } catch (error) {
+    if (isNotionApiError(error, 404)) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+async function findSyncedPageIdByMessageId(apiKey: string, dataSourceId: string, messageId: string): Promise<string> {
+  const response = await notionFetch<unknown>(apiKey, `/data_sources/${encodeURIComponent(dataSourceId)}/query`, {
+    method: "POST",
+    body: JSON.stringify({
+      page_size: 1,
+      filter: {
+        property: "Message ID",
+        rich_text: {
+          equals: messageId,
+        },
+      },
+    }),
+  });
+
+  if (!isRecord(response) || !Array.isArray(response.results)) {
+    return "";
+  }
+
+  const firstPage = response.results.find(isRecord);
+  return firstPage ? extractString(firstPage, "id") : "";
 }
 
 async function ensureChat2NotionTarget(apiKey: string, databaseId: string): Promise<NotionDataSourceInfo> {
@@ -554,21 +630,35 @@ function createPageRequestBodyJson(payload: ChatPairPayload): string {
   return JSON.stringify(createPageRequestBody(payload, true));
 }
 
+function createPagePropertiesBodyJson(payload: ChatPairPayload): string {
+  const fullBodyJson = JSON.stringify({ properties: createPageProperties(payload, false) });
+
+  if (getByteLength(fullBodyJson) <= NOTION_SAFE_REQUEST_BODY_LIMIT_BYTES && canUseFullPropertyValue(payload.question) && canUseFullPropertyValue(payload.answer)) {
+    return fullBodyJson;
+  }
+
+  return JSON.stringify({ properties: createPageProperties(payload, true) });
+}
+
 function createPageRequestBody(payload: ChatPairPayload, usePropertyPreview: boolean): Record<string, unknown> {
   return {
     parent: { data_source_id: "" },
-    properties: {
-      Name: {
-        title: [{ type: "text", text: { content: createTitleFromQuestion(payload.question) } }],
-      },
-      Question: { rich_text: toRichText(toPropertyValue(payload.question, usePropertyPreview)) },
-      Answer: { rich_text: toRichText(toPropertyValue(payload.answer, usePropertyPreview)) },
-      AI: { select: { name: "ChatGPT" } },
-      "Source URL": { url: payload.sourceUrl },
-      "Synced At": { date: { start: new Date().toISOString() } },
-      "Message ID": { rich_text: toRichText(payload.messageId) },
-      "Sync Mode": { select: { name: payload.syncMode } },
+    properties: createPageProperties(payload, usePropertyPreview),
+  };
+}
+
+function createPageProperties(payload: ChatPairPayload, usePropertyPreview: boolean): Record<string, unknown> {
+  return {
+    Name: {
+      title: [{ type: "text", text: { content: createTitleFromQuestion(payload.question) } }],
     },
+    Question: { rich_text: toRichText(toPropertyValue(payload.question, usePropertyPreview)) },
+    Answer: { rich_text: toRichText(toPropertyValue(payload.answer, usePropertyPreview)) },
+    AI: { select: { name: "ChatGPT" } },
+    "Source URL": { url: payload.sourceUrl },
+    "Synced At": { date: { start: new Date().toISOString() } },
+    "Message ID": { rich_text: toRichText(payload.messageId) },
+    "Sync Mode": { select: { name: payload.syncMode } },
   };
 }
 
@@ -594,6 +684,39 @@ async function appendPageMarkdownBackup(apiKey: string, pageId: string, markdown
     await notionFetch<unknown>(apiKey, `/pages/${encodeURIComponent(pageId)}/markdown`, {
       method: "PATCH",
       body: bodyJson,
+    });
+  }
+}
+
+async function replacePageMarkdownBackup(apiKey: string, pageId: string, markdown: string): Promise<void> {
+  const [firstChunk = "No content captured.", ...remainingChunks] = splitMarkdownForNotion(markdown);
+  const bodyJson = JSON.stringify({
+    type: "replace_content",
+    replace_content: {
+      new_str: firstChunk,
+    },
+  });
+
+  assertNotionRequestFits(bodyJson, "Notion markdown replacement chunk");
+
+  await notionFetch<unknown>(apiKey, `/pages/${encodeURIComponent(pageId)}/markdown`, {
+    method: "PATCH",
+    body: bodyJson,
+  });
+
+  for (const chunk of remainingChunks) {
+    const appendBodyJson = JSON.stringify({
+      type: "insert_content",
+      insert_content: {
+        content: chunk,
+      },
+    });
+
+    assertNotionRequestFits(appendBodyJson, "Notion markdown backup chunk");
+
+    await notionFetch<unknown>(apiKey, `/pages/${encodeURIComponent(pageId)}/markdown`, {
+      method: "PATCH",
+      body: appendBodyJson,
     });
   }
 }
@@ -777,20 +900,51 @@ async function updateLastSyncStatus(status: SyncStatus): Promise<void> {
   await writeConfig({ ...config, lastSyncStatus: status, updatedAt: new Date().toISOString() });
 }
 
-async function getSyncedMessages(): Promise<Record<string, string>> {
+async function getSyncedMessages(): Promise<Record<string, SyncedMessageRecord>> {
   const stored = await chrome.storage.local.get(SYNCED_MESSAGES_STORAGE_KEY);
-  return isStringRecord(stored[SYNCED_MESSAGES_STORAGE_KEY]) ? stored[SYNCED_MESSAGES_STORAGE_KEY] : {};
+  return readSyncedMessages(stored[SYNCED_MESSAGES_STORAGE_KEY]);
 }
 
 async function isMessageSynced(messageId: string): Promise<boolean> {
-  const messages = await getSyncedMessages();
-  return Boolean(messages[messageId]);
+  return Boolean(await getSyncedMessage(messageId));
 }
 
-async function markMessageSynced(messageId: string): Promise<void> {
+async function getSyncedMessage(messageId: string): Promise<SyncedMessageRecord | null> {
   const messages = await getSyncedMessages();
-  messages[messageId] = new Date().toISOString();
+  return messages[messageId] ?? null;
+}
+
+async function markMessageSynced(messageId: string, notionPageId: string): Promise<void> {
+  const messages = await getSyncedMessages();
+  messages[messageId] = {
+    syncedAt: new Date().toISOString(),
+    notionPageId,
+  };
   await chrome.storage.local.set({ [SYNCED_MESSAGES_STORAGE_KEY]: messages });
+}
+
+function readSyncedMessages(value: unknown): Record<string, SyncedMessageRecord> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const messages: Record<string, SyncedMessageRecord> = {};
+
+  for (const [messageId, item] of Object.entries(value)) {
+    if (typeof item === "string") {
+      messages[messageId] = { syncedAt: item, notionPageId: "" };
+      continue;
+    }
+
+    if (isRecord(item) && typeof item.syncedAt === "string") {
+      messages[messageId] = {
+        syncedAt: item.syncedAt,
+        notionPageId: typeof item.notionPageId === "string" ? item.notionPageId : "",
+      };
+    }
+  }
+
+  return messages;
 }
 
 function normalizeNotionId(value: string): string {
@@ -801,10 +955,6 @@ function normalizeNotionId(value: string): string {
 
 function isRuntimeRequest(value: unknown): value is RuntimeRequest {
   return isRecord(value) && typeof value.type === "string" && value.type.startsWith("chat2notion:");
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return isRecord(value) && Object.values(value).every((item) => typeof item === "string");
 }
 
 function extractString(value: unknown, key: string): string {

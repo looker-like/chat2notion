@@ -47,7 +47,7 @@ export type RuntimeRequest =
   | { type: "chat2notion:getConfig" }
   | { type: "chat2notion:saveConfig"; config: Pick<Chat2NotionConfig, "apiKey" | "databaseId" | "autoSyncEnabled"> }
   | { type: "chat2notion:testConnection"; config?: Pick<Chat2NotionConfig, "apiKey" | "databaseId"> }
-  | { type: "chat2notion:syncPair"; payload: ChatPairPayload }
+  | { type: "chat2notion:syncPair"; payload: ChatPairPayload; overwrite?: boolean }
   | { type: "chat2notion:isSynced"; messageId: string };
 
 export type RuntimeResponse =
