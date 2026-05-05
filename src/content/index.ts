@@ -36,6 +36,8 @@ let autoSyncEnabled = false;
 let conversationAutoSyncEnabled = false;
 let conversationKey = createConversationKey();
 let scanTimer: number | null = null;
+let observer: MutationObserver | null = null;
+let extensionContextValid = true;
 const autoSyncTimers = new Map<string, number>();
 
 void initialize();
@@ -83,7 +85,7 @@ async function refreshConfig(): Promise<void> {
 }
 
 async function refreshConversationAutoSync(): Promise<void> {
-  const stored = await chrome.storage.local.get(CONVERSATION_AUTO_SYNC_STORAGE_KEY);
+  const stored = await safeStorageGet(CONVERSATION_AUTO_SYNC_STORAGE_KEY);
   const state = readConversationAutoSyncState(stored[CONVERSATION_AUTO_SYNC_STORAGE_KEY]);
   conversationAutoSyncEnabled = Boolean(state[conversationKey]);
 }
@@ -95,7 +97,8 @@ async function handleLocationChanged(): Promise<void> {
 }
 
 function observeChat(): void {
-  const observer = new MutationObserver(() => scheduleScan(OBSERVER_DEBOUNCE_MS));
+  observer?.disconnect();
+  observer = new MutationObserver(() => scheduleScan(OBSERVER_DEBOUNCE_MS));
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
@@ -104,6 +107,10 @@ function observeChat(): void {
 }
 
 function scheduleScan(delay: number): void {
+  if (!extensionContextValid) {
+    return;
+  }
+
   if (scanTimer !== null) {
     window.clearTimeout(scanTimer);
   }
@@ -291,7 +298,13 @@ async function initializeSyncedState(messageId: string, control: ControlNodes): 
 
 async function toggleConversationAutoSync(pair: ChatPair, control: ControlNodes): Promise<void> {
   const nextEnabled = !conversationAutoSyncEnabled;
-  await setConversationAutoSync(nextEnabled);
+  const saved = await setConversationAutoSync(nextEnabled);
+
+  if (!saved) {
+    setControlState(control, "error", "Extension was reloaded. Refresh this ChatGPT tab.");
+    return;
+  }
+
   conversationAutoSyncEnabled = nextEnabled;
   syncAllConversationAutoButtons();
 
@@ -309,8 +322,13 @@ async function toggleConversationAutoSync(pair: ChatPair, control: ControlNodes)
   scheduleScan(100);
 }
 
-async function setConversationAutoSync(enabled: boolean): Promise<void> {
-  const stored = await chrome.storage.local.get(CONVERSATION_AUTO_SYNC_STORAGE_KEY);
+async function setConversationAutoSync(enabled: boolean): Promise<boolean> {
+  const stored = await safeStorageGet(CONVERSATION_AUTO_SYNC_STORAGE_KEY);
+
+  if (!extensionContextValid) {
+    return false;
+  }
+
   const state = readConversationAutoSyncState(stored[CONVERSATION_AUTO_SYNC_STORAGE_KEY]);
 
   if (enabled) {
@@ -323,7 +341,7 @@ async function setConversationAutoSync(enabled: boolean): Promise<void> {
     delete state[conversationKey];
   }
 
-  await chrome.storage.local.set({ [CONVERSATION_AUTO_SYNC_STORAGE_KEY]: state });
+  return safeStorageSet({ [CONVERSATION_AUTO_SYNC_STORAGE_KEY]: state });
 }
 
 function syncAllConversationAutoButtons(): void {
@@ -419,7 +437,83 @@ function isAnswerStillStreaming(assistant: HTMLElement): boolean {
 }
 
 async function sendMessage(message: object): Promise<RuntimeResponse> {
-  return chrome.runtime.sendMessage(message) as Promise<RuntimeResponse>;
+  if (!extensionContextValid) {
+    return { ok: false, message: "Extension was reloaded. Refresh this ChatGPT tab." };
+  }
+
+  try {
+    return (await chrome.runtime.sendMessage(message)) as RuntimeResponse;
+  } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      handleExtensionContextInvalidated();
+      return { ok: false, message: "Extension was reloaded. Refresh this ChatGPT tab." };
+    }
+
+    return { ok: false, message: toErrorMessage(error, "Could not contact Chat2Notion background worker.") };
+  }
+}
+
+async function safeStorageGet(key: string): Promise<Record<string, unknown>> {
+  if (!extensionContextValid) {
+    return {};
+  }
+
+  try {
+    return (await chrome.storage.local.get(key)) as Record<string, unknown>;
+  } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      handleExtensionContextInvalidated();
+    }
+
+    return {};
+  }
+}
+
+async function safeStorageSet(value: Record<string, unknown>): Promise<boolean> {
+  if (!extensionContextValid) {
+    return false;
+  }
+
+  try {
+    await chrome.storage.local.set(value);
+    return true;
+  } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      handleExtensionContextInvalidated();
+    }
+
+    return false;
+  }
+}
+
+function handleExtensionContextInvalidated(): void {
+  if (!extensionContextValid) {
+    return;
+  }
+
+  extensionContextValid = false;
+  observer?.disconnect();
+  observer = null;
+
+  if (scanTimer !== null) {
+    window.clearTimeout(scanTimer);
+    scanTimer = null;
+  }
+
+  autoSyncTimers.forEach((timer) => window.clearTimeout(timer));
+  autoSyncTimers.clear();
+
+  document.querySelectorAll<HTMLDivElement>(`[${CONTROL_ATTRIBUTE}]`).forEach((root) => {
+    setControlState(readControl(root), "error", "Extension was reloaded. Refresh this ChatGPT tab.");
+  });
+}
+
+function isExtensionContextInvalidated(error: unknown): boolean {
+  return toErrorMessage(error, "").includes("Extension context invalidated");
+}
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function getResponseMessage(response: RuntimeResponse, fallback: string): string {
