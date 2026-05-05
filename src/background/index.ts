@@ -26,6 +26,7 @@ const REQUIRED_PROPERTIES = {
 } as const;
 const DEFAULT_DATABASE_TITLE = "Chat2Notion";
 const DEFAULT_DATA_SOURCE_TITLE = "Synced Chats";
+const NOTION_REQUEST_BODY_LIMIT_BYTES = 500_000;
 
 type RequiredPropertyName = keyof typeof REQUIRED_PROPERTIES;
 type NotionPropertyType = (typeof REQUIRED_PROPERTIES)[RequiredPropertyName];
@@ -224,11 +225,15 @@ async function createNotionPage(apiKey: string, dataSourceId: string, payload: C
       "Message ID": { rich_text: toRichText(payload.messageId) },
       "Sync Mode": { select: { name: payload.syncMode } },
     },
+    markdown: createPageMarkdownBackup(payload),
   };
+  const bodyJson = JSON.stringify(body);
+
+  assertNotionRequestFits(bodyJson);
 
   return notionFetch<NotionPageResponse>(apiKey, "/pages", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: bodyJson,
   });
 }
 
@@ -543,6 +548,46 @@ function toRichText(text: string): Array<{ type: "text"; text: { content: string
 
 function toNotionText(content: string): Array<{ type: "text"; text: { content: string } }> {
   return [{ type: "text", text: { content } }];
+}
+
+function createPageMarkdownBackup(payload: ChatPairPayload): string {
+  const question = normalizeMarkdownBackup(payload.questionMarkdown || payload.question);
+  const answer = normalizeMarkdownBackup(payload.answerMarkdown || payload.answer);
+  const sourceUrl = escapeMarkdownUrl(payload.sourceUrl);
+
+  return [
+    "# ChatGPT Sync Backup",
+    `Source: [${sourceUrl}](${sourceUrl})`,
+    `Synced At: ${new Date().toISOString()}`,
+    `Sync Mode: ${payload.syncMode}`,
+    `Message ID: ${payload.messageId}`,
+    "## Question",
+    question,
+    "## Answer",
+    answer,
+  ].join("\n\n");
+}
+
+function normalizeMarkdownBackup(value: string): string {
+  return value
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function escapeMarkdownUrl(value: string): string {
+  return value.replace(/\)/g, "%29");
+}
+
+function assertNotionRequestFits(bodyJson: string): void {
+  const size = new TextEncoder().encode(bodyJson).length;
+
+  if (size > NOTION_REQUEST_BODY_LIMIT_BYTES) {
+    throw new Error(
+      `Notion request is too large after adding the page content backup (${Math.ceil(size / 1024)}KB, limit 489KB). Shorten the question or answer before syncing.`,
+    );
+  }
 }
 
 function assertSyncPayload(payload: ChatPairPayload): void {

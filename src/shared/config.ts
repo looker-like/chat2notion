@@ -23,7 +23,9 @@ export interface SyncStatus {
 export interface ChatPairPayload {
   messageId: string;
   question: string;
+  questionMarkdown?: string;
   answer: string;
+  answerMarkdown?: string;
   sourceUrl: string;
   syncMode: "manual" | "auto";
 }
