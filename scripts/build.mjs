@@ -12,6 +12,7 @@ async function main() {
   await fs.mkdir(distDir, { recursive: true });
   await buildManifest();
   await copyAndTranspile(srcDir, path.join(distDir, "src"));
+  await verifyBuildOutput();
   console.log("Built extension to dist");
 }
 
@@ -73,8 +74,20 @@ async function copyAndTranspile(source, target) {
       continue;
     }
 
+    if (entry.name.endsWith(".html")) {
+      await copyHtml(sourcePath, targetPath);
+      continue;
+    }
+
     await fs.copyFile(sourcePath, targetPath);
   }
+}
+
+async function copyHtml(sourcePath, targetPath) {
+  const source = await fs.readFile(sourcePath, "utf8");
+  const rewritten = source.replace(/(<script\b[^>]*\bsrc=["'][^"']+)\.ts(["'][^>]*>)/g, "$1.js$2");
+  await fs.copyFile(sourcePath, targetPath);
+  await fs.writeFile(targetPath, rewritten);
 }
 
 async function transpileTs(sourcePath, targetPath) {
@@ -91,6 +104,40 @@ async function transpileTs(sourcePath, targetPath) {
 
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
   await fs.writeFile(targetPath, rewriteRelativeImports(output.outputText));
+}
+
+async function verifyBuildOutput() {
+  const manifestPath = path.join(distDir, "manifest.json");
+  const contentPath = path.join(distDir, "src", "content", "index.js");
+  const popupHtmlPath = path.join(distDir, "src", "popup", "popup.html");
+  const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+  const content = await fs.readFile(contentPath, "utf8");
+  const popupHtml = await fs.readFile(popupHtmlPath, "utf8");
+
+  if (/^\s*(import|export)\s/m.test(content)) {
+    throw new Error("Content script output must not contain top-level import/export.");
+  }
+
+  if (popupHtml.includes(".ts")) {
+    throw new Error("Popup HTML output must reference compiled .js files, not .ts files.");
+  }
+
+  await assertDistFileExists(manifest.action?.default_popup);
+  await assertDistFileExists(manifest.background?.service_worker);
+
+  for (const contentScript of manifest.content_scripts ?? []) {
+    for (const scriptPath of contentScript.js ?? []) {
+      await assertDistFileExists(scriptPath);
+    }
+  }
+}
+
+async function assertDistFileExists(relativePath) {
+  if (typeof relativePath !== "string" || !relativePath) {
+    throw new Error("Manifest contains an empty referenced file path.");
+  }
+
+  await fs.access(path.join(distDir, relativePath));
 }
 
 function rewriteRelativeImports(code) {

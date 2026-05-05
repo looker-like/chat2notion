@@ -1,9 +1,9 @@
-import { CONVERSATION_AUTO_SYNC_STORAGE_KEY, type ChatPairPayload, type RuntimeResponse } from "../shared/config";
-
 const CONTROL_CLASS = "c2n-control";
 const CONTROL_ATTRIBUTE = "data-chat2notion-control";
 const ASSISTANT_PROCESSED_ATTRIBUTE = "data-chat2notion-processed";
 const AUTO_SYNCED_ATTRIBUTE = "data-chat2notion-auto-synced";
+const CONFIG_STORAGE_KEY = "chat2notionConfig";
+const CONVERSATION_AUTO_SYNC_STORAGE_KEY = "chat2notionConversationAutoSync";
 const OBSERVER_DEBOUNCE_MS = 700;
 const AUTO_SYNC_STABILITY_MS = 2200;
 const MIN_AUTO_SYNC_ANSWER_LENGTH = 2;
@@ -15,6 +15,14 @@ interface ChatPair {
   messageId: string;
   sourceUrl: string;
 }
+
+type SyncMode = "manual" | "auto";
+
+type RuntimeResponse =
+  | { ok: true; config: { autoSyncEnabled: boolean } }
+  | { ok: true; synced: boolean }
+  | { ok: true; message?: string }
+  | { ok: false; message: string };
 
 interface ControlNodes {
   root: HTMLDivElement;
@@ -39,7 +47,7 @@ async function initialize(): Promise<void> {
   observeChat();
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local" || !changes.chat2notionConfig) {
+    if (areaName !== "local" || !changes[CONFIG_STORAGE_KEY]) {
       return;
     }
 
@@ -368,7 +376,7 @@ function scheduleAutoSync(pair: ChatPair): void {
   autoSyncTimers.set(pair.messageId, timer);
 }
 
-async function syncPair(pair: ChatPair, control: ControlNodes, syncMode: ChatPairPayload["syncMode"]): Promise<void> {
+async function syncPair(pair: ChatPair, control: ControlNodes, syncMode: SyncMode): Promise<void> {
   setControlState(control, "pending", syncMode === "auto" ? "Auto-syncing..." : "Syncing...");
 
   const response = await sendMessage({
