@@ -14,6 +14,7 @@ Manifest V3 browser extension that syncs ChatGPT question/answer pairs to a Noti
 - Synced Notion pages also include a Markdown content backup so links, headings, lists, quotes, code blocks, and tables are not limited to plain database properties.
 - Long page backups are appended in batches; if full question/answer properties would make the create request too large, those properties become previews and the full content remains in the page body.
 - A synced answer button remains clickable; confirming the prompt resyncs and overwrites the existing Notion page instead of creating a duplicate.
+- After a sync stores a Notion page ID, the answer controls show an `Open in Notion` button for that page.
 - Versioning starts at `0.1.xx` for small updates.
 
 ## Development

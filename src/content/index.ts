@@ -28,13 +28,14 @@ type SyncMode = "manual" | "auto";
 
 type RuntimeResponse =
   | { ok: true; config: { autoSyncEnabled: boolean } }
-  | { ok: true; synced: boolean }
-  | { ok: true; message?: string }
+  | { ok: true; synced: boolean; notionPageId?: string }
+  | { ok: true; message?: string; notionPageId?: string }
   | { ok: false; message: string };
 
 interface ControlNodes {
   root: HTMLDivElement;
   button: HTMLButtonElement;
+  openButton: HTMLButtonElement;
   autoButton: HTMLButtonElement;
   status: HTMLSpanElement;
 }
@@ -244,10 +245,14 @@ function ensureControl(pair: ChatPair): void {
   control.button.onclick = () => {
     void handleManualSync(pair, control);
   };
+  control.openButton.onclick = () => {
+    openNotionPage(control);
+  };
   control.autoButton.onclick = () => {
     void toggleConversationAutoSync(pair, control);
   };
   syncConversationAutoButton(control);
+  syncOpenButton(control);
 
   void initializeSyncedState(pair.messageId, control);
 }
@@ -260,7 +265,14 @@ function createControl(pair: ChatPair): ControlNodes {
 
   const button = document.createElement("button");
   button.type = "button";
+  button.dataset.role = "sync";
   button.textContent = "Sync to Notion";
+
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.dataset.role = "notion-open";
+  openButton.textContent = "Open in Notion";
+  openButton.hidden = true;
 
   const autoButton = document.createElement("button");
   autoButton.type = "button";
@@ -269,20 +281,37 @@ function createControl(pair: ChatPair): ControlNodes {
   const status = document.createElement("span");
   status.textContent = "";
 
-  root.append(button, autoButton, status);
-  return { root, button, autoButton, status };
+  root.append(button, openButton, autoButton, status);
+  return { root, button, openButton, autoButton, status };
 }
 
 function readControl(root: HTMLDivElement): ControlNodes {
-  const button = root.querySelector<HTMLButtonElement>("button:not([data-role='conversation-auto-sync'])") ?? document.createElement("button");
+  const button =
+    root.querySelector<HTMLButtonElement>("button[data-role='sync']") ??
+    Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find((node) => {
+      const role = node.dataset.role;
+      return role !== "conversation-auto-sync" && role !== "notion-open";
+    }) ??
+    document.createElement("button");
+  const openButton = root.querySelector<HTMLButtonElement>("button[data-role='notion-open']") ?? document.createElement("button");
   const autoButton =
     root.querySelector<HTMLButtonElement>("button[data-role='conversation-auto-sync']") ?? document.createElement("button");
   const status = root.querySelector<HTMLSpanElement>("span") ?? document.createElement("span");
 
   if (!button.parentElement) {
     button.type = "button";
-    button.textContent = "Sync to Notion";
     root.append(button);
+  }
+
+  button.dataset.role = "sync";
+  button.textContent ||= "Sync to Notion";
+
+  if (!openButton.parentElement) {
+    openButton.type = "button";
+    openButton.dataset.role = "notion-open";
+    openButton.textContent = "Open in Notion";
+    openButton.hidden = true;
+    root.insertBefore(openButton, autoButton.parentElement ? autoButton : status.parentElement ? status : null);
   }
 
   if (!autoButton.parentElement) {
@@ -295,7 +324,7 @@ function readControl(root: HTMLDivElement): ControlNodes {
     root.append(status);
   }
 
-  return { root, button, autoButton, status };
+  return { root, button, openButton, autoButton, status };
 }
 
 function findInsertionTarget(assistant: HTMLElement): HTMLElement {
@@ -307,6 +336,7 @@ async function initializeSyncedState(messageId: string, control: ControlNodes): 
   const response = await sendMessage({ type: "chat2notion:isSynced", messageId });
 
   if (response.ok && "synced" in response && response.synced) {
+    setNotionPageId(control, response.notionPageId ?? "");
     setControlState(control, "synced", "Synced");
   }
 }
@@ -444,6 +474,7 @@ async function syncPair(pair: ChatPair, control: ControlNodes, syncMode: SyncMod
 
   if (response.ok) {
     pair.assistant.setAttribute(AUTO_SYNCED_ATTRIBUTE, pair.messageId);
+    setNotionPageId(control, "notionPageId" in response ? response.notionPageId ?? "" : "");
     setControlState(control, "synced", getResponseMessage(response, "Synced"));
     return;
   }
@@ -458,10 +489,44 @@ function setControlState(control: ControlNodes, state: "idle" | "pending" | "syn
   control.button.textContent = state === "synced" ? "Synced" : state === "pending" ? "Syncing" : "Sync to Notion";
   control.button.title = state === "synced" ? "Click to resync and overwrite the existing Notion page." : "";
   control.autoButton.disabled = state === "pending";
+  syncOpenButton(control);
 }
 
 function setControlStatus(control: ControlNodes, message: string): void {
   control.status.textContent = message;
+}
+
+function setNotionPageId(control: ControlNodes, notionPageId: string): void {
+  if (notionPageId) {
+    control.root.dataset.notionPageId = notionPageId;
+  } else {
+    delete control.root.dataset.notionPageId;
+  }
+
+  syncOpenButton(control);
+}
+
+function syncOpenButton(control: ControlNodes): void {
+  const notionPageId = control.root.dataset.notionPageId ?? "";
+  const hasPage = Boolean(notionPageId);
+  control.openButton.hidden = !hasPage;
+  control.openButton.disabled = !hasPage || control.root.dataset.state === "pending";
+  control.openButton.title = hasPage ? "Open the synced Notion page in a new tab." : "";
+}
+
+function openNotionPage(control: ControlNodes): void {
+  const notionPageId = control.root.dataset.notionPageId ?? "";
+
+  if (!notionPageId) {
+    setControlStatus(control, "No Notion page link is available yet.");
+    return;
+  }
+
+  window.open(createNotionPageUrl(notionPageId), "_blank", "noopener,noreferrer");
+}
+
+function createNotionPageUrl(notionPageId: string): string {
+  return `https://www.notion.so/${notionPageId.replace(/-/g, "")}`;
 }
 
 function isAnswerStillStreaming(assistant: HTMLElement): boolean {

@@ -53,7 +53,7 @@ export type RuntimeRequest =
 export type RuntimeResponse =
   | { ok: true; config: Chat2NotionConfig }
   | { ok: true; message: string; dataSourceId?: string }
-  | { ok: true; synced: boolean }
+  | { ok: true; synced: boolean; notionPageId?: string }
   | SyncResponse;
 
 export function createDefaultConfig(): Chat2NotionConfig {

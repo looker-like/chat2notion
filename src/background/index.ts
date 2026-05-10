@@ -90,8 +90,10 @@ async function handleRuntimeRequest(message: RuntimeRequest): Promise<RuntimeRes
       return saveUserConfig(message.config);
     case "chat2notion:testConnection":
       return testConnection(message.config);
-    case "chat2notion:isSynced":
-      return { ok: true, synced: await isMessageSynced(message.messageId) };
+    case "chat2notion:isSynced": {
+      const syncedMessage = await getSyncedMessage(message.messageId);
+      return { ok: true, synced: Boolean(syncedMessage), notionPageId: syncedMessage?.notionPageId };
+    }
     case "chat2notion:syncPair":
       return syncPair(message.payload, Boolean(message.overwrite));
   }
