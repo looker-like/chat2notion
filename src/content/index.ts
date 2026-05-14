@@ -524,8 +524,21 @@ function extractDeepSeekMessageContent(message: HTMLElement): MessageContent | n
     return null;
   }
 
-  const text = normalizeText(blocks.map((block) => block.text || block.markdown).join("\n\n"));
-  const markdown = normalizeMarkdown(blocks.map((block) => block.markdown || block.text).join("\n\n"));
+  if (blocks.length === 1) {
+    return {
+      text: normalizeText(blocks[0].text || blocks[0].markdown),
+      markdown: normalizeMarkdown(blocks[0].markdown || blocks[0].text),
+    };
+  }
+
+  const reasoningBlocks = blocks.slice(0, -1);
+  const answerBlock = blocks[blocks.length - 1];
+  const reasoningText = normalizeText(reasoningBlocks.map((block) => block.text || block.markdown).join("\n\n"));
+  const answerText = normalizeText(answerBlock.text || answerBlock.markdown);
+  const reasoningMarkdown = normalizeMarkdown(reasoningBlocks.map((block) => block.markdown || block.text).join("\n\n"));
+  const answerMarkdown = normalizeMarkdown(answerBlock.markdown || answerBlock.text);
+  const text = normalizeText(["思考内容", reasoningText, "正式回答", answerText].join("\n\n"));
+  const markdown = normalizeMarkdown(["## 思考内容", reasoningMarkdown, "---", "## 正式回答", answerMarkdown].join("\n\n"));
 
   return { text, markdown };
 }
