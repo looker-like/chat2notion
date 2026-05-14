@@ -5,6 +5,7 @@ Manifest V3 browser extension that syncs AI question/answer pairs to a Notion da
 ## Behavior
 
 - ChatGPT, Gemini, DeepSeek, Grok, and Doubao answer nodes get a manual `Sync to Notion` button where the page DOM can be detected.
+- DeepSeek uses its virtualized visible message list for button injection, so only currently mounted answers are scanned.
 - `Auto-save chat` enables automatic Notion sync for the current AI conversation only.
 - The popup-level global auto-sync is still available, but it is intended to stay off for normal use.
 - The popup includes an `Open full settings page` button for cases where pasting from another app would close the popup.

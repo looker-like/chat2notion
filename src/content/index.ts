@@ -82,6 +82,9 @@ const PLATFORM_ADAPTERS: PlatformAdapter[] = [
     aiName: "DeepSeek",
     hosts: ["chat.deepseek.com"],
     assistantSelectors: [
+      ".ds-virtual-list-visible-items > ._4f9bf79",
+      "._4f9bf79",
+      "._43c05b5",
       "[data-message-author-role='assistant']",
       "[data-role='assistant']",
       "[data-testid*='assistant']",
@@ -91,13 +94,15 @@ const PLATFORM_ADAPTERS: PlatformAdapter[] = [
       "[class*='assistant']",
     ],
     userSelectors: [
+      ".ds-virtual-list-visible-items > ._9663006",
+      "._9663006",
       "[data-message-author-role='user']",
       "[data-role='user']",
       "[data-testid*='user']",
       ".user-message",
       "[class*='user']",
     ],
-    contentSelectors: [".ds-markdown", ".markdown", "[class*='markdown']", "[class*='content']"],
+    contentSelectors: [".ds-message .ds-markdown:last-child", "div.ds-markdown:last-of-type", ".ds-markdown", ".markdown", "[class*='markdown']", "[class*='content']"],
     assistantArticlePattern: /assistant|deepseek|answer|response/i,
     userArticlePattern: /user|question|prompt/i,
     streamingSelectors: ['[aria-label*="Stop"]', '[data-testid*="stop"]', "[class*='stop']"],
@@ -288,6 +293,15 @@ function scanPage(): void {
 
 function getAssistantMessages(): HTMLElement[] {
   const adapter = getCurrentAdapter();
+
+  if (adapter.id === "deepseek") {
+    const deepSeekRows = getDeepSeekAssistantRows();
+
+    if (deepSeekRows.length > 0) {
+      return deepSeekRows;
+    }
+  }
+
   const bySelector = querySelectorList(adapter.assistantSelectors);
 
   if (bySelector.length > 0) {
@@ -392,6 +406,16 @@ function buildChatPair(assistant: HTMLElement): ChatPair | null {
 }
 
 function findPreviousUserMessage(assistant: HTMLElement): HTMLElement | null {
+  const adapter = getCurrentAdapter();
+
+  if (adapter.id === "deepseek") {
+    const deepSeekUser = findPreviousDeepSeekUserMessage(assistant);
+
+    if (deepSeekUser) {
+      return deepSeekUser;
+    }
+  }
+
   const users = getUserMessages();
   let previous: HTMLElement | null = null;
 
@@ -405,6 +429,58 @@ function findPreviousUserMessage(assistant: HTMLElement): HTMLElement | null {
   }
 
   return previous;
+}
+
+function getDeepSeekAssistantRows(): HTMLElement[] {
+  const container = getDeepSeekMessageContainer();
+
+  if (!container) {
+    return [];
+  }
+
+  return Array.from(container.children).filter((node): node is HTMLElement => node instanceof HTMLElement && isDeepSeekAssistantRow(node));
+}
+
+function findPreviousDeepSeekUserMessage(assistant: HTMLElement): HTMLElement | null {
+  const row = getDeepSeekMessageRow(assistant);
+  let previous = row?.previousElementSibling ?? null;
+
+  while (previous) {
+    if (previous instanceof HTMLElement && isDeepSeekUserRow(previous)) {
+      return previous;
+    }
+
+    previous = previous.previousElementSibling;
+  }
+
+  return null;
+}
+
+function getDeepSeekMessageContainer(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(".ds-virtual-list-visible-items");
+}
+
+function getDeepSeekMessageRow(node: HTMLElement): HTMLElement | null {
+  const container = getDeepSeekMessageContainer();
+
+  if (!container) {
+    return null;
+  }
+
+  return Array.from(container.children).find((child): child is HTMLElement => child instanceof HTMLElement && (child === node || child.contains(node))) ?? null;
+}
+
+function isDeepSeekAssistantRow(row: HTMLElement): boolean {
+  return Boolean(row.querySelector("div.ds-markdown")) && !isInsideChat2NotionControl(row);
+}
+
+function isDeepSeekUserRow(row: HTMLElement): boolean {
+  if (row.matches("._9663006") || row.querySelector("._9663006")) {
+    return true;
+  }
+
+  const text = row.textContent?.trim() ?? "";
+  return Boolean(text) && !row.querySelector("div.ds-markdown") && !isInsideChat2NotionControl(row);
 }
 
 function extractMessageContent(message: HTMLElement, adapter = getCurrentAdapter()): MessageContent {
