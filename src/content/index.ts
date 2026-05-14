@@ -487,6 +487,14 @@ function extractMessageContent(message: HTMLElement, adapter = getCurrentAdapter
   const clone = message.cloneNode(true) as HTMLElement;
   clone.querySelectorAll(`[${CONTROL_ATTRIBUTE}], script, style, button, svg`).forEach((node) => node.remove());
 
+  if (adapter.id === "deepseek") {
+    const deepSeekContent = extractDeepSeekMessageContent(clone);
+
+    if (deepSeekContent) {
+      return deepSeekContent;
+    }
+  }
+
   const content = findContentElement(clone, adapter.contentSelectors) ?? clone;
   const text = normalizeText(content.innerText || content.textContent || "");
   const markdownText = normalizeMarkdown(elementToMarkdown(content)) || text;
@@ -495,6 +503,31 @@ function extractMessageContent(message: HTMLElement, adapter = getCurrentAdapter
     text,
     markdown: markdownText,
   };
+}
+
+function extractDeepSeekMessageContent(message: HTMLElement): MessageContent | null {
+  const markdownBlocks = Array.from(message.querySelectorAll<HTMLElement>("div.ds-markdown, .ds-markdown"))
+    .filter((node) => !isInsideChat2NotionControl(node));
+
+  if (markdownBlocks.length === 0) {
+    return null;
+  }
+
+  const blocks = markdownBlocks
+    .map((block) => ({
+      text: normalizeText(block.innerText || block.textContent || ""),
+      markdown: normalizeMarkdown(elementToMarkdown(block)),
+    }))
+    .filter((block) => block.text || block.markdown);
+
+  if (blocks.length === 0) {
+    return null;
+  }
+
+  const text = normalizeText(blocks.map((block) => block.text || block.markdown).join("\n\n"));
+  const markdown = normalizeMarkdown(blocks.map((block) => block.markdown || block.text).join("\n\n"));
+
+  return { text, markdown };
 }
 
 function ensureControl(pair: ChatPair): void {
