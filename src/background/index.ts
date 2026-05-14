@@ -34,8 +34,23 @@ const SUPPORTED_AI_OPTIONS = [
   { name: "ChatGPT", color: "blue" },
   { name: "Gemini", color: "purple" },
   { name: "DeepSeek", color: "green" },
+  { name: "Claude", color: "orange" },
   { name: "Grok", color: "orange" },
+  { name: "Perplexity", color: "blue" },
+  { name: "Copilot", color: "blue" },
+  { name: "Poe", color: "purple" },
+  { name: "Mistral", color: "red" },
+  { name: "Meta AI", color: "blue" },
   { name: "Doubao", color: "red" },
+  { name: "Kimi", color: "green" },
+  { name: "Qwen", color: "purple" },
+  { name: "Yuanbao", color: "orange" },
+  { name: "ChatGLM", color: "green" },
+  { name: "ERNIE", color: "blue" },
+  { name: "HuggingChat", color: "yellow" },
+  { name: "Duck.ai", color: "green" },
+  { name: "You.com", color: "blue" },
+  { name: "AI", color: "gray" },
 ] as const;
 
 type RequiredPropertyName = keyof typeof REQUIRED_PROPERTIES;
@@ -44,7 +59,7 @@ type NotionPropertyType = (typeof REQUIRED_PROPERTIES)[RequiredPropertyName];
 interface NotionDataSourceInfo {
   id: string;
   databaseId: string;
-  properties: Record<string, { type?: string }>;
+  properties: Record<string, { type?: string; selectOptions?: string[] }>;
   createdDatabase?: boolean;
   initializedSchema?: boolean;
 }
@@ -409,16 +424,22 @@ async function retrieveDataSource(
 
 async function initializeDataSourceProperties(apiKey: string, dataSource: NotionDataSourceInfo): Promise<NotionDataSourceInfo> {
   const issues = getRequiredPropertyIssues(dataSource.properties);
+  const missingAiOptions = getMissingAiSelectOptions(dataSource.properties);
 
   if (issues.incompatible.length > 0) {
     throw new Error(`Notion database has incompatible properties: ${issues.incompatible.join(", ")}.`);
   }
 
-  if (issues.missing.length === 0) {
+  if (issues.missing.length === 0 && missingAiOptions.length === 0) {
     return dataSource;
   }
 
   const patchProperties = createMissingPropertiesPatch(dataSource.properties);
+
+  if (!issues.missing.some((item) => item.startsWith("AI ")) && missingAiOptions.length > 0) {
+    patchProperties.AI = createAiSelectPropertySchema(dataSource.properties.AI?.selectOptions ?? []);
+  }
+
   const updated = await notionFetch<unknown>(apiKey, `/data_sources/${encodeURIComponent(dataSource.id)}`, {
     method: "PATCH",
     body: JSON.stringify({ properties: patchProperties }),
@@ -470,16 +491,21 @@ function extractDataSourceId(database: unknown): string {
   return firstResult ? extractString(firstResult, "id") : "";
 }
 
-function extractProperties(value: unknown): Record<string, { type?: string }> {
+function extractProperties(value: unknown): Record<string, { type?: string; selectOptions?: string[] }> {
   if (!isRecord(value) || !isRecord(value.properties)) {
     return {};
   }
 
-  const properties: Record<string, { type?: string }> = {};
+  const properties: Record<string, { type?: string; selectOptions?: string[] }> = {};
 
   Object.entries(value.properties).forEach(([name, property]) => {
     if (isRecord(property)) {
-      properties[name] = { type: typeof property.type === "string" ? property.type : undefined };
+      const type = typeof property.type === "string" ? property.type : undefined;
+      const select = isRecord(property.select) ? property.select : null;
+      const selectOptions = select && Array.isArray(select.options)
+        ? select.options.flatMap((option) => (isRecord(option) && typeof option.name === "string" ? [option.name] : []))
+        : undefined;
+      properties[name] = { type, selectOptions };
     }
   });
 
@@ -554,7 +580,7 @@ function createRequiredPropertySchema(name: RequiredPropertyName): Record<string
       return { date: {} };
     case "select":
       return name === "AI"
-        ? { select: { options: SUPPORTED_AI_OPTIONS.map((option) => ({ ...option })) } }
+        ? createAiSelectPropertySchema()
         : {
             select: {
               options: [
@@ -564,6 +590,31 @@ function createRequiredPropertySchema(name: RequiredPropertyName): Record<string
             },
           };
   }
+}
+
+function getMissingAiSelectOptions(properties: Record<string, { type?: string; selectOptions?: string[] }>): string[] {
+  const aiProperty = properties.AI;
+
+  if (aiProperty?.type !== "select") {
+    return [];
+  }
+
+  const existingOptions = new Set(aiProperty.selectOptions ?? []);
+  return SUPPORTED_AI_OPTIONS.map((option) => option.name).filter((name) => !existingOptions.has(name));
+}
+
+function createAiSelectPropertySchema(existingOptionNames: string[] = []): Record<string, unknown> {
+  const knownOptions = new Map<string, { name: string; color: string }>(
+    SUPPORTED_AI_OPTIONS.map((option) => [option.name, { ...option }]),
+  );
+
+  existingOptionNames.forEach((name) => {
+    if (!knownOptions.has(name)) {
+      knownOptions.set(name, { name, color: "default" });
+    }
+  });
+
+  return { select: { options: Array.from(knownOptions.values()).map((option) => ({ ...option })) } };
 }
 
 function describeTargetSetup(target: NotionDataSourceInfo): string {
