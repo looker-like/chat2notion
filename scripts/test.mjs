@@ -56,8 +56,21 @@ test("manifest and custom build script inject content scripts on expected platfo
     assert.match(buildSource, new RegExp(`"${escapeRegExp(platform.match)}"`), `build script missing ${platform.match}`);
   }
 
+  assert.match(manifestSource, /"https:\/\/\*\.doubao\.com\/\*"/);
+  assert.match(buildSource, /"https:\/\/\*\.doubao\.com\/\*"/);
   assert.match(manifestSource, /"https:\/\/api\.notion\.com\/\*"/);
   assert.match(buildSource, /"https:\/\/api\.notion\.com\/\*"/);
+});
+
+test("Doubao adapter recognizes current message data-testid structure", () => {
+  assert.match(contentSource, /id:\s*"doubao"/);
+  assert.match(contentSource, /"div\[data-testid='receive_message'\]"/);
+  assert.match(contentSource, /"div\[data-testid='send_message'\]"/);
+  assert.match(contentSource, /"div\[data-testid='message_text_content'\]"/);
+  assert.match(contentSource, /function getDoubaoAssistantMessages/);
+  assert.match(contentSource, /function findPreviousDoubaoUserMessage/);
+  assert.match(contentSource, /function extractSelectedContentBlocks/);
+  assert.match(contentSource, /closest<HTMLElement>\("\[data-testid='union_message'\]"\)/);
 });
 
 test("content sync payload carries adapter identity and namespaces message IDs", () => {

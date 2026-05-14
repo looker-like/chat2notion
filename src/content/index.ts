@@ -276,6 +276,8 @@ const PLATFORM_ADAPTERS: PlatformAdapter[] = [
     aiName: "Doubao",
     hosts: ["doubao.com", "www.doubao.com"],
     assistantSelectors: [
+      "div[data-testid='receive_message']",
+      "[data-testid='receive_message']",
       "[data-message-author-role='assistant']",
       "[data-role='assistant']",
       "[data-testid*='assistant']",
@@ -286,6 +288,8 @@ const PLATFORM_ADAPTERS: PlatformAdapter[] = [
       "[class*='answer']",
     ],
     userSelectors: [
+      "div[data-testid='send_message']",
+      "[data-testid='send_message']",
       "[data-message-author-role='user']",
       "[data-role='user']",
       "[data-testid*='user']",
@@ -294,7 +298,16 @@ const PLATFORM_ADAPTERS: PlatformAdapter[] = [
       "[class*='user']",
       "[class*='question']",
     ],
-    contentSelectors: [".markdown", "[class*='markdown']", "[class*='message']", "[class*='content']", "[class*='answer']"],
+    contentSelectors: [
+      "div[data-testid='message_text_content']",
+      "[data-testid='message_text_content']",
+      "[data-testid='message_content']",
+      ".markdown",
+      "[class*='markdown']",
+      "[class*='message']",
+      "[class*='content']",
+      "[class*='answer']",
+    ],
     assistantArticlePattern: /assistant|answer|response|豆包|回答/i,
     userArticlePattern: /user|question|prompt|用户|提问/i,
     streamingSelectors: ['[aria-label*="Stop"]', '[aria-label*="停止"]', '[data-testid*="stop"]', "[class*='stop']"],
@@ -648,6 +661,14 @@ function getAssistantMessages(): HTMLElement[] {
     }
   }
 
+  if (adapter.id === "doubao") {
+    const doubaoMessages = getDoubaoAssistantMessages();
+
+    if (doubaoMessages.length > 0) {
+      return doubaoMessages;
+    }
+  }
+
   const bySelector = querySelectorList(adapter.assistantSelectors);
 
   if (bySelector.length > 0) {
@@ -664,6 +685,15 @@ function getAssistantMessages(): HTMLElement[] {
 
 function getUserMessages(): HTMLElement[] {
   const adapter = getCurrentAdapter();
+
+  if (adapter.id === "doubao") {
+    const doubaoMessages = getDoubaoUserMessages();
+
+    if (doubaoMessages.length > 0) {
+      return doubaoMessages;
+    }
+  }
+
   const bySelector = querySelectorList(adapter.userSelectors);
 
   if (bySelector.length > 0) {
@@ -762,6 +792,14 @@ function findPreviousUserMessage(assistant: HTMLElement): HTMLElement | null {
     }
   }
 
+  if (adapter.id === "doubao") {
+    const doubaoUser = findPreviousDoubaoUserMessage(assistant);
+
+    if (doubaoUser) {
+      return doubaoUser;
+    }
+  }
+
   const users = getUserMessages();
   let previous: HTMLElement | null = null;
 
@@ -775,6 +813,63 @@ function findPreviousUserMessage(assistant: HTMLElement): HTMLElement | null {
   }
 
   return previous;
+}
+
+function getDoubaoAssistantMessages(): HTMLElement[] {
+  const explicitMessages = querySelectorList(["div[data-testid='receive_message']", "[data-testid='receive_message']"]);
+
+  if (explicitMessages.length > 0) {
+    return filterMessageNodes(explicitMessages);
+  }
+
+  return filterMessageNodes(getDoubaoMessageRows().filter(isDoubaoAssistantRow));
+}
+
+function getDoubaoUserMessages(): HTMLElement[] {
+  const explicitMessages = querySelectorList(["div[data-testid='send_message']", "[data-testid='send_message']"]);
+
+  if (explicitMessages.length > 0) {
+    return filterMessageNodes(explicitMessages);
+  }
+
+  return filterMessageNodes(getDoubaoMessageRows().filter(isDoubaoUserRow));
+}
+
+function findPreviousDoubaoUserMessage(assistant: HTMLElement): HTMLElement | null {
+  const row = getDoubaoMessageRow(assistant);
+  let previous = row?.previousElementSibling ?? null;
+
+  while (previous) {
+    if (previous instanceof HTMLElement && isDoubaoUserRow(previous)) {
+      return previous.querySelector<HTMLElement>("[data-testid='send_message']") ?? previous;
+    }
+
+    previous = previous.previousElementSibling;
+  }
+
+  return null;
+}
+
+function getDoubaoMessageRows(): HTMLElement[] {
+  return querySelectorList(["div[data-testid='union_message']", "[data-testid='union_message']"]);
+}
+
+function getDoubaoMessageRow(node: HTMLElement): HTMLElement | null {
+  return node.closest<HTMLElement>("[data-testid='union_message']") ?? node.closest<HTMLElement>("[data-testid='receive_message']");
+}
+
+function isDoubaoAssistantRow(row: HTMLElement): boolean {
+  return Boolean(
+    row.matches("[data-testid='receive_message']") ||
+      row.querySelector("[data-testid='receive_message']") ||
+      (row.querySelector("[data-testid='message_text_content']") &&
+        !isDoubaoUserRow(row) &&
+        (row.querySelector("[data-testid='message_action_copy']") || row.querySelector("[data-testid='message_action_dislike']"))),
+  );
+}
+
+function isDoubaoUserRow(row: HTMLElement): boolean {
+  return Boolean(row.matches("[data-testid='send_message']") || row.querySelector("[data-testid='send_message']"));
 }
 
 function getDeepSeekAssistantRows(): HTMLElement[] {
@@ -841,6 +936,14 @@ function extractMessageContent(message: HTMLElement, adapter = getCurrentAdapter
     }
   }
 
+  if (adapter.id === "doubao") {
+    const doubaoContent = extractSelectedContentBlocks(clone, "[data-testid='message_text_content'], [data-testid='message_content']");
+
+    if (doubaoContent) {
+      return doubaoContent;
+    }
+  }
+
   const content = findContentElement(clone, adapter.contentSelectors) ?? clone;
   const text = normalizeText(content.innerText || content.textContent || "");
   const markdownText = normalizeMarkdown(elementToMarkdown(content)) || text;
@@ -886,6 +989,38 @@ function extractDeepSeekMessageContent(message: HTMLElement): MessageContent | n
   const text = normalizeText(["思考内容", reasoningText, "正式回答", answerText].join("\n\n"));
   const markdown = normalizeMarkdown(["## 思考内容", reasoningMarkdown, "---", "## 正式回答", answerMarkdown].join("\n\n"));
 
+  return { text, markdown };
+}
+
+function extractSelectedContentBlocks(message: HTMLElement, selector: string): MessageContent | null {
+  const seen = new Set<HTMLElement>();
+  const blocks: HTMLElement[] = [];
+
+  if (message.matches(selector)) {
+    seen.add(message);
+    blocks.push(message);
+  }
+
+  message.querySelectorAll<HTMLElement>(selector).forEach((node) => {
+    if (!seen.has(node) && !isInsideChat2NotionControl(node)) {
+      seen.add(node);
+      blocks.push(node);
+    }
+  });
+
+  const parts = blocks
+    .map((block) => ({
+      text: normalizeText(block.innerText || block.textContent || ""),
+      markdown: normalizeMarkdown(elementToMarkdown(block)),
+    }))
+    .filter((block) => block.text || block.markdown);
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const text = normalizeText(parts.map((block) => block.text || block.markdown).join("\n\n"));
+  const markdown = normalizeMarkdown(parts.map((block) => block.markdown || block.text).join("\n\n"));
   return { text, markdown };
 }
 
@@ -987,6 +1122,10 @@ function readControl(root: HTMLDivElement): ControlNodes {
 }
 
 function findInsertionTarget(assistant: HTMLElement): HTMLElement {
+  if (getCurrentAdapter().id === "doubao") {
+    return assistant.closest<HTMLElement>("[data-testid='union_message']") ?? assistant.closest<HTMLElement>("[data-testid='receive_message']") ?? assistant;
+  }
+
   const article = assistant.closest<HTMLElement>("article");
   return article ?? assistant;
 }
