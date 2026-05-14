@@ -1,11 +1,11 @@
 # Chat2Notion
 
-Manifest V3 browser extension that syncs ChatGPT question/answer pairs to a Notion database.
+Manifest V3 browser extension that syncs AI question/answer pairs to a Notion database.
 
 ## Behavior
 
-- Each ChatGPT answer gets a manual `Sync to Notion` button.
-- `Auto-save chat` enables automatic Notion sync for the current ChatGPT conversation only.
+- ChatGPT, Gemini, DeepSeek, Grok, and Doubao answer nodes get a manual `Sync to Notion` button where the page DOM can be detected.
+- `Auto-save chat` enables automatic Notion sync for the current AI conversation only.
 - The popup-level global auto-sync is still available, but it is intended to stay off for normal use.
 - The popup includes an `Open full settings page` button for cases where pasting from another app would close the popup.
 - Configuration input is saved locally before Notion validation, so a failed setup does not erase the API key or target ID.
@@ -15,6 +15,7 @@ Manifest V3 browser extension that syncs ChatGPT question/answer pairs to a Noti
 - Long page backups are appended in batches; if full question/answer properties would make the create request too large, those properties become previews and the full content remains in the page body.
 - A synced answer button remains clickable; confirming the prompt resyncs and overwrites the existing Notion page instead of creating a duplicate.
 - After a sync stores a Notion page ID, the answer controls show an `Open in Notion` button for that page.
+- The Notion `AI` select field is written from the current platform adapter.
 - Versioning starts at `0.1.xx` for small updates.
 
 ## Development

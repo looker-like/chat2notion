@@ -22,6 +22,7 @@ export interface SyncStatus {
 
 export interface ChatPairPayload {
   messageId: string;
+  aiName?: string;
   question: string;
   questionMarkdown?: string;
   answer: string;

@@ -11,6 +11,8 @@ const MIN_AUTO_SYNC_ANSWER_LENGTH = 2;
 
 interface ChatPair {
   assistant: HTMLElement;
+  aiName: string;
+  platformId: string;
   question: string;
   questionMarkdown: string;
   answer: string;
@@ -26,6 +28,18 @@ interface MessageContent {
 
 type SyncMode = "manual" | "auto";
 
+interface PlatformAdapter {
+  id: string;
+  aiName: string;
+  hosts: string[];
+  assistantSelectors: string[];
+  userSelectors: string[];
+  contentSelectors: string[];
+  assistantArticlePattern: RegExp;
+  userArticlePattern: RegExp;
+  streamingSelectors: string[];
+}
+
 type RuntimeResponse =
   | { ok: true; config: { autoSyncEnabled: boolean } }
   | { ok: true; synced: boolean; notionPageId?: string }
@@ -39,6 +53,133 @@ interface ControlNodes {
   autoButton: HTMLButtonElement;
   status: HTMLSpanElement;
 }
+
+const PLATFORM_ADAPTERS: PlatformAdapter[] = [
+  {
+    id: "chatgpt",
+    aiName: "ChatGPT",
+    hosts: ["chatgpt.com", "chat.openai.com"],
+    assistantSelectors: ['[data-message-author-role="assistant"]'],
+    userSelectors: ['[data-message-author-role="user"]'],
+    contentSelectors: [".markdown", "[data-message-content]", "[data-testid='conversation-turn-message']"],
+    assistantArticlePattern: /assistant|chatgpt/i,
+    userArticlePattern: /user|you/i,
+    streamingSelectors: ['[data-testid="stop-button"]', '[aria-label*="Stop"]', '[aria-label*="停止"]', ".result-streaming"],
+  },
+  {
+    id: "gemini",
+    aiName: "Gemini",
+    hosts: ["gemini.google.com", "bard.google.com"],
+    assistantSelectors: ["model-response", "[data-testid='model-response']", "[data-test-id='model-response']", ".model-response"],
+    userSelectors: ["user-query", "[data-testid='user-query']", "[data-test-id='user-query']", ".user-query"],
+    contentSelectors: [".markdown", "message-content", ".message-content", ".response-content", ".query-text"],
+    assistantArticlePattern: /assistant|gemini|model|response/i,
+    userArticlePattern: /user|you|query|prompt/i,
+    streamingSelectors: ['[aria-label*="Stop"]', '[data-testid*="stop"]', ".stop-button"],
+  },
+  {
+    id: "deepseek",
+    aiName: "DeepSeek",
+    hosts: ["chat.deepseek.com"],
+    assistantSelectors: [
+      "[data-message-author-role='assistant']",
+      "[data-role='assistant']",
+      "[data-testid*='assistant']",
+      ".assistant-message",
+      ".ai-message",
+      ".ds-markdown",
+      "[class*='assistant']",
+    ],
+    userSelectors: [
+      "[data-message-author-role='user']",
+      "[data-role='user']",
+      "[data-testid*='user']",
+      ".user-message",
+      "[class*='user']",
+    ],
+    contentSelectors: [".ds-markdown", ".markdown", "[class*='markdown']", "[class*='content']"],
+    assistantArticlePattern: /assistant|deepseek|answer|response/i,
+    userArticlePattern: /user|question|prompt/i,
+    streamingSelectors: ['[aria-label*="Stop"]', '[data-testid*="stop"]', "[class*='stop']"],
+  },
+  {
+    id: "grok",
+    aiName: "Grok",
+    hosts: ["grok.com", "x.com"],
+    assistantSelectors: [
+      "[data-message-author-role='assistant']",
+      "[data-role='assistant']",
+      "[data-testid*='assistant']",
+      ".assistant-message",
+      ".ai-message",
+      "[class*='assistant']",
+    ],
+    userSelectors: [
+      "[data-message-author-role='user']",
+      "[data-role='user']",
+      "[data-testid*='user']",
+      ".user-message",
+      "[class*='user']",
+    ],
+    contentSelectors: [".markdown", "[class*='markdown']", "[class*='message']", "[class*='content']"],
+    assistantArticlePattern: /assistant|grok|answer|response/i,
+    userArticlePattern: /user|you|question|prompt/i,
+    streamingSelectors: ['[aria-label*="Stop"]', '[data-testid*="stop"]', "[class*='stop']"],
+  },
+  {
+    id: "doubao",
+    aiName: "Doubao",
+    hosts: ["doubao.com", "www.doubao.com"],
+    assistantSelectors: [
+      "[data-message-author-role='assistant']",
+      "[data-role='assistant']",
+      "[data-testid*='assistant']",
+      "[data-testid*='answer']",
+      ".assistant-message",
+      ".ai-message",
+      "[class*='assistant']",
+      "[class*='answer']",
+    ],
+    userSelectors: [
+      "[data-message-author-role='user']",
+      "[data-role='user']",
+      "[data-testid*='user']",
+      "[data-testid*='question']",
+      ".user-message",
+      "[class*='user']",
+      "[class*='question']",
+    ],
+    contentSelectors: [".markdown", "[class*='markdown']", "[class*='message']", "[class*='content']", "[class*='answer']"],
+    assistantArticlePattern: /assistant|answer|response|豆包|回答/i,
+    userArticlePattern: /user|question|prompt|用户|提问/i,
+    streamingSelectors: ['[aria-label*="Stop"]', '[aria-label*="停止"]', '[data-testid*="stop"]', "[class*='stop']"],
+  },
+];
+
+const FALLBACK_ADAPTER: PlatformAdapter = {
+  id: "generic",
+  aiName: "AI",
+  hosts: [],
+  assistantSelectors: [
+    "[data-message-author-role='assistant']",
+    "[data-role='assistant']",
+    "[data-testid*='assistant']",
+    ".assistant-message",
+    ".ai-message",
+    "[class*='assistant']",
+  ],
+  userSelectors: [
+    "[data-message-author-role='user']",
+    "[data-role='user']",
+    "[data-testid*='user']",
+    ".user-message",
+    "[class*='user']",
+  ],
+  contentSelectors: [".markdown", "[class*='markdown']", "[class*='message']", "[class*='content']"],
+  assistantArticlePattern: /assistant|answer|response/i,
+  userArticlePattern: /user|question|prompt/i,
+  streamingSelectors: ['[aria-label*="Stop"]', '[aria-label*="停止"]', '[data-testid*="stop"]', "[class*='stop']"],
+};
 
 let autoSyncEnabled = false;
 let conversationAutoSyncEnabled = false;
@@ -146,50 +287,101 @@ function scanPage(): void {
 }
 
 function getAssistantMessages(): HTMLElement[] {
-  const byRole = Array.from(document.querySelectorAll<HTMLElement>('[data-message-author-role="assistant"]'));
+  const adapter = getCurrentAdapter();
+  const bySelector = querySelectorList(adapter.assistantSelectors);
 
-  if (byRole.length > 0) {
-    return byRole.filter((node) => !isInsideChat2NotionControl(node));
+  if (bySelector.length > 0) {
+    return filterMessageNodes(bySelector);
   }
 
   const articles = Array.from(document.querySelectorAll<HTMLElement>("article"));
   return articles.filter((article) => {
     const text = article.textContent?.trim() ?? "";
     const ariaLabel = article.getAttribute("aria-label") ?? "";
-    return text && /assistant|chatgpt/i.test(ariaLabel);
+    return text && adapter.assistantArticlePattern.test(ariaLabel) && !isInsideChat2NotionControl(article);
   });
 }
 
 function getUserMessages(): HTMLElement[] {
-  const byRole = Array.from(document.querySelectorAll<HTMLElement>('[data-message-author-role="user"]'));
+  const adapter = getCurrentAdapter();
+  const bySelector = querySelectorList(adapter.userSelectors);
 
-  if (byRole.length > 0) {
-    return byRole;
+  if (bySelector.length > 0) {
+    return filterMessageNodes(bySelector);
   }
 
   const articles = Array.from(document.querySelectorAll<HTMLElement>("article"));
-  return articles.filter((article) => /user|you/i.test(article.getAttribute("aria-label") ?? ""));
+  return articles.filter((article) => adapter.userArticlePattern.test(article.getAttribute("aria-label") ?? ""));
+}
+
+function getCurrentAdapter(): PlatformAdapter {
+  const host = location.hostname.toLowerCase();
+  return PLATFORM_ADAPTERS.find((adapter) => adapter.hosts.some((candidate) => host === candidate || host.endsWith(`.${candidate}`))) ?? FALLBACK_ADAPTER;
+}
+
+function querySelectorList(selectors: string[]): HTMLElement[] {
+  const seen = new Set<HTMLElement>();
+  const nodes: HTMLElement[] = [];
+
+  selectors.forEach((selector) => {
+    document.querySelectorAll<HTMLElement>(selector).forEach((node) => {
+      if (!seen.has(node)) {
+        seen.add(node);
+        nodes.push(node);
+      }
+    });
+  });
+
+  return nodes;
+}
+
+function filterMessageNodes(nodes: HTMLElement[]): HTMLElement[] {
+  const candidates = nodes.filter((node) => {
+    const text = node.textContent?.trim() ?? "";
+    return text && !isInsideChat2NotionControl(node) && !node.closest(`[${CONTROL_ATTRIBUTE}]`);
+  });
+
+  return candidates.filter((node) => !candidates.some((other) => other !== node && other.contains(node)));
+}
+
+function findContentElement(root: HTMLElement, selectors: string[]): HTMLElement | null {
+  for (const selector of selectors) {
+    if (root.matches(selector)) {
+      return root;
+    }
+
+    const child = root.querySelector<HTMLElement>(selector);
+
+    if (child) {
+      return child;
+    }
+  }
+
+  return null;
 }
 
 function buildChatPair(assistant: HTMLElement): ChatPair | null {
-  const answer = extractMessageContent(assistant);
+  const adapter = getCurrentAdapter();
+  const answer = extractMessageContent(assistant, adapter);
 
   if (!answer.text) {
     return null;
   }
 
   const user = findPreviousUserMessage(assistant);
-  const question = user ? extractMessageContent(user) : { text: "", markdown: "" };
+  const question = user ? extractMessageContent(user, adapter) : { text: "", markdown: "" };
 
   if (!question.text) {
     return null;
   }
 
   const sourceUrl = location.href;
-  const messageId = createMessageId(question.text, answer.text, sourceUrl);
+  const messageId = createMessageId(question.text, answer.text, sourceUrl, adapter.id);
 
   return {
     assistant,
+    aiName: adapter.aiName,
+    platformId: adapter.id,
     question: question.text,
     questionMarkdown: question.markdown,
     answer: answer.text,
@@ -215,12 +407,11 @@ function findPreviousUserMessage(assistant: HTMLElement): HTMLElement | null {
   return previous;
 }
 
-function extractMessageContent(message: HTMLElement): MessageContent {
+function extractMessageContent(message: HTMLElement, adapter = getCurrentAdapter()): MessageContent {
   const clone = message.cloneNode(true) as HTMLElement;
   clone.querySelectorAll(`[${CONTROL_ATTRIBUTE}], script, style, button, svg`).forEach((node) => node.remove());
 
-  const markdown = clone.querySelector<HTMLElement>(".markdown, [data-message-content], [data-testid='conversation-turn-message']");
-  const content = markdown ?? clone;
+  const content = findContentElement(clone, adapter.contentSelectors) ?? clone;
   const text = normalizeText(content.innerText || content.textContent || "");
   const markdownText = normalizeMarkdown(elementToMarkdown(content)) || text;
 
@@ -463,6 +654,7 @@ async function syncPair(pair: ChatPair, control: ControlNodes, syncMode: SyncMod
     overwrite,
     payload: {
       messageId: pair.messageId,
+      aiName: pair.aiName,
       question: pair.question,
       questionMarkdown: pair.questionMarkdown,
       answer: pair.answer,
@@ -530,9 +722,8 @@ function createNotionPageUrl(notionPageId: string): string {
 }
 
 function isAnswerStillStreaming(assistant: HTMLElement): boolean {
-  return Boolean(
-    assistant.querySelector('[data-testid="stop-button"], [aria-label*="Stop"], [aria-label*="停止"], .result-streaming'),
-  );
+  const selectors = getCurrentAdapter().streamingSelectors;
+  return selectors.some((selector) => Boolean(assistant.querySelector(selector)));
 }
 
 async function sendMessage(message: object): Promise<RuntimeResponse> {
@@ -619,10 +810,11 @@ function getResponseMessage(response: RuntimeResponse, fallback: string): string
   return "message" in response && typeof response.message === "string" ? response.message : fallback;
 }
 
-function createMessageId(question: string, answer: string, sourceUrl: string): string {
+function createMessageId(question: string, answer: string, sourceUrl: string, platformId: string): string {
   const url = new URL(sourceUrl);
-  const seed = `${url.origin}${url.pathname}|${normalizeText(question)}|${normalizeText(answer).slice(0, 600)}|${answer.length}`;
-  return `chatgpt-${hashString(seed)}`;
+  const platformSeed = platformId === "chatgpt" ? "" : `${platformId}|`;
+  const seed = `${platformSeed}${url.origin}${url.pathname}|${normalizeText(question)}|${normalizeText(answer).slice(0, 600)}|${answer.length}`;
+  return `${platformId}-${hashString(seed)}`;
 }
 
 function hashString(value: string): string {

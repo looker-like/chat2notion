@@ -30,6 +30,13 @@ const NOTION_REQUEST_BODY_LIMIT_BYTES = 500_000;
 const NOTION_SAFE_REQUEST_BODY_LIMIT_BYTES = 420_000;
 const PROPERTY_PREVIEW_CHARACTER_LIMIT = 12_000;
 const MARKDOWN_CHUNK_CONTENT_LIMIT_BYTES = 340_000;
+const SUPPORTED_AI_OPTIONS = [
+  { name: "ChatGPT", color: "blue" },
+  { name: "Gemini", color: "purple" },
+  { name: "DeepSeek", color: "green" },
+  { name: "Grok", color: "orange" },
+  { name: "Doubao", color: "red" },
+] as const;
 
 type RequiredPropertyName = keyof typeof REQUIRED_PROPERTIES;
 type NotionPropertyType = (typeof REQUIRED_PROPERTIES)[RequiredPropertyName];
@@ -547,7 +554,7 @@ function createRequiredPropertySchema(name: RequiredPropertyName): Record<string
       return { date: {} };
     case "select":
       return name === "AI"
-        ? { select: { options: [{ name: "ChatGPT", color: "blue" }] } }
+        ? { select: { options: SUPPORTED_AI_OPTIONS.map((option) => ({ ...option })) } }
         : {
             select: {
               options: [
@@ -656,7 +663,7 @@ function createPageProperties(payload: ChatPairPayload, usePropertyPreview: bool
     },
     Question: { rich_text: toRichText(toPropertyValue(payload.question, usePropertyPreview)) },
     Answer: { rich_text: toRichText(toPropertyValue(payload.answer, usePropertyPreview)) },
-    AI: { select: { name: "ChatGPT" } },
+    AI: { select: { name: payload.aiName || "ChatGPT" } },
     "Source URL": { url: payload.sourceUrl },
     "Synced At": { date: { start: new Date().toISOString() } },
     "Message ID": { rich_text: toRichText(payload.messageId) },
@@ -729,7 +736,8 @@ function createPageMarkdownBackup(payload: ChatPairPayload): string {
   const sourceUrl = escapeMarkdownUrl(payload.sourceUrl);
 
   return [
-    "# ChatGPT Sync Backup",
+    "# AI Sync Backup",
+    `AI: ${payload.aiName || "ChatGPT"}`,
     `Source: [${sourceUrl}](${sourceUrl})`,
     `Synced At: ${new Date().toISOString()}`,
     `Sync Mode: ${payload.syncMode}`,
