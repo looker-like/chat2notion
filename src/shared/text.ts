@@ -29,5 +29,5 @@ export function assertRichTextFitsNotion(value: string, label: string): void {
 
 export function createTitleFromQuestion(question: string): string {
   const normalized = question.trim().replace(/\s+/g, " ");
-  return normalized.slice(0, 80) || "ChatGPT answer";
+  return normalized.slice(0, 80) || "AI answer";
 }

@@ -73,10 +73,24 @@ test("Doubao adapter recognizes current message data-testid structure", () => {
   assert.match(contentSource, /closest<HTMLElement>\("\[data-testid='union_message'\]"\)/);
 });
 
+test("content controls are found from the insertion host for Doubao-style nested messages", () => {
+  assert.match(contentSource, /function findExistingControl\(assistant: HTMLElement, insertionTarget: HTMLElement, messageId: string\)/);
+  assert.match(contentSource, /const insertionTarget = findInsertionTarget\(pair\.assistant\)/);
+  assert.match(contentSource, /removeDuplicateControls\(insertionTarget, control\.root\)/);
+  assert.match(contentSource, /findExistingControl\(pair\.assistant, findInsertionTarget\(pair\.assistant\), pair\.messageId\)/);
+});
+
 test("content sync payload carries adapter identity and namespaces message IDs", () => {
   assert.match(contentSource, /aiName:\s*pair\.aiName/);
   assert.match(contentSource, /createMessageId\(question\.text,\s*answer\.text,\s*sourceUrl,\s*adapter\.id\)/);
   assert.match(contentSource, /return `\$\{platformId\}-\$\{hashString\(seed\)\}`/);
+});
+
+test("multi-platform user-facing copy does not imply ChatGPT-only support", () => {
+  assert.doesNotMatch(read("src/popup/popup.html"), /ChatGPT/);
+  assert.doesNotMatch(read("src/shared/text.ts"), /ChatGPT answer/);
+  assert.doesNotMatch(contentSource, /Refresh this ChatGPT tab/);
+  assert.doesNotMatch(contentSource, /ChatGPT conversation/);
 });
 
 test("DeepSeek keeps multi-block reasoning and answer sections separated", () => {

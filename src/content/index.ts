@@ -1027,14 +1027,15 @@ function extractSelectedContentBlocks(message: HTMLElement, selector: string): M
 function ensureControl(pair: ChatPair): void {
   pair.assistant.setAttribute(ASSISTANT_PROCESSED_ATTRIBUTE, "true");
 
-  const existing = pair.assistant.querySelector<HTMLDivElement>(`[${CONTROL_ATTRIBUTE}]`);
+  const insertionTarget = findInsertionTarget(pair.assistant);
+  const existing = findExistingControl(pair.assistant, insertionTarget, pair.messageId);
   const control = existing ? readControl(existing) : createControl(pair);
 
   if (!existing) {
-    const insertionTarget = findInsertionTarget(pair.assistant);
     insertionTarget.append(control.root);
   }
 
+  removeDuplicateControls(insertionTarget, control.root);
   control.root.dataset.messageId = pair.messageId;
   control.button.onclick = () => {
     void handleManualSync(pair, control);
@@ -1130,6 +1131,28 @@ function findInsertionTarget(assistant: HTMLElement): HTMLElement {
   return article ?? assistant;
 }
 
+function findExistingControl(assistant: HTMLElement, insertionTarget: HTMLElement, messageId: string): HTMLDivElement | null {
+  const assistantControl = assistant.querySelector<HTMLDivElement>(`[${CONTROL_ATTRIBUTE}]`);
+
+  if (assistantControl) {
+    return assistantControl;
+  }
+
+  const directControls = Array.from(insertionTarget.children).filter((node): node is HTMLDivElement => {
+    return node instanceof HTMLDivElement && node.hasAttribute(CONTROL_ATTRIBUTE);
+  });
+
+  return directControls.find((node) => node.dataset.messageId === messageId) ?? directControls[0] ?? null;
+}
+
+function removeDuplicateControls(insertionTarget: HTMLElement, keep: HTMLDivElement): void {
+  Array.from(insertionTarget.children).forEach((node) => {
+    if (node instanceof HTMLDivElement && node !== keep && node.hasAttribute(CONTROL_ATTRIBUTE)) {
+      node.remove();
+    }
+  });
+}
+
 async function initializeSyncedState(messageId: string, control: ControlNodes): Promise<void> {
   const response = await sendMessage({ type: "chat2notion:isSynced", messageId });
 
@@ -1159,7 +1182,7 @@ async function toggleConversationAutoSync(pair: ChatPair, control: ControlNodes)
   const saved = await setConversationAutoSync(nextEnabled);
 
   if (!saved) {
-    setControlState(control, "error", "Extension was reloaded. Refresh this ChatGPT tab.");
+    setControlState(control, "error", "Extension was reloaded. Refresh this AI chat tab.");
     return;
   }
 
@@ -1212,8 +1235,8 @@ function syncConversationAutoButton(control: ControlNodes): void {
   control.autoButton.textContent = conversationAutoSyncEnabled ? "Auto-save chat: On" : "Auto-save chat";
   control.autoButton.dataset.enabled = conversationAutoSyncEnabled ? "true" : "false";
   control.autoButton.title = conversationAutoSyncEnabled
-    ? "Disable automatic Notion sync for this ChatGPT conversation."
-    : "Enable automatic Notion sync for this ChatGPT conversation.";
+    ? "Disable automatic Notion sync for this AI conversation."
+    : "Enable automatic Notion sync for this AI conversation.";
 }
 
 function scheduleAutoSync(pair: ChatPair): void {
@@ -1241,7 +1264,7 @@ function scheduleAutoSync(pair: ChatPair): void {
       return;
     }
 
-    const controlRoot = pair.assistant.querySelector<HTMLDivElement>(`[${CONTROL_ATTRIBUTE}]`);
+    const controlRoot = findExistingControl(pair.assistant, findInsertionTarget(pair.assistant), pair.messageId);
 
     if (!controlRoot) {
       return;
@@ -1335,7 +1358,7 @@ function isAnswerStillStreaming(assistant: HTMLElement): boolean {
 
 async function sendMessage(message: object): Promise<RuntimeResponse> {
   if (!extensionContextValid) {
-    return { ok: false, message: "Extension was reloaded. Refresh this ChatGPT tab." };
+    return { ok: false, message: "Extension was reloaded. Refresh this AI chat tab." };
   }
 
   try {
@@ -1343,7 +1366,7 @@ async function sendMessage(message: object): Promise<RuntimeResponse> {
   } catch (error) {
     if (isExtensionContextInvalidated(error)) {
       handleExtensionContextInvalidated();
-      return { ok: false, message: "Extension was reloaded. Refresh this ChatGPT tab." };
+      return { ok: false, message: "Extension was reloaded. Refresh this AI chat tab." };
     }
 
     return { ok: false, message: toErrorMessage(error, "Could not contact Chat2Notion background worker.") };
@@ -1401,7 +1424,7 @@ function handleExtensionContextInvalidated(): void {
   autoSyncTimers.clear();
 
   document.querySelectorAll<HTMLDivElement>(`[${CONTROL_ATTRIBUTE}]`).forEach((root) => {
-    setControlState(readControl(root), "error", "Extension was reloaded. Refresh this ChatGPT tab.");
+    setControlState(readControl(root), "error", "Extension was reloaded. Refresh this AI chat tab.");
   });
 }
 
