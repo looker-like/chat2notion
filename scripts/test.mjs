@@ -4,30 +4,64 @@ import path from "node:path";
 import test from "node:test";
 
 const root = process.cwd();
-const contentSource = read("src/content/index.ts");
+const contentSource = read("src/content/adapters.ts") + "\n" + read("src/content/index.ts");
 const backgroundSource = read("src/background/index.ts");
 const manifestSource = read("manifest.config.ts");
-const buildSource = read("scripts/build.mjs");
 const packageJson = JSON.parse(read("package.json"));
 const packageLock = JSON.parse(read("package-lock.json"));
 
 const expectedPlatforms = [
   { id: "chatgpt", aiName: "ChatGPT", hosts: ["chatgpt.com", "chat.openai.com"], match: "https://chatgpt.com/*" },
-  { id: "gemini", aiName: "Gemini", hosts: ["gemini.google.com", "bard.google.com"], match: "https://gemini.google.com/*" },
+  {
+    id: "gemini",
+    aiName: "Gemini",
+    hosts: ["gemini.google.com", "bard.google.com"],
+    match: "https://gemini.google.com/*",
+  },
   { id: "deepseek", aiName: "DeepSeek", hosts: ["chat.deepseek.com"], match: "https://chat.deepseek.com/*" },
   { id: "claude", aiName: "Claude", hosts: ["claude.ai"], match: "https://claude.ai/*" },
   { id: "grok", aiName: "Grok", hosts: ["grok.com", "x.com"], match: "https://grok.com/*" },
-  { id: "perplexity", aiName: "Perplexity", hosts: ["perplexity.ai", "www.perplexity.ai"], match: "https://www.perplexity.ai/*" },
-  { id: "copilot", aiName: "Copilot", hosts: ["copilot.microsoft.com", "www.bing.com"], match: "https://copilot.microsoft.com/*" },
+  {
+    id: "perplexity",
+    aiName: "Perplexity",
+    hosts: ["perplexity.ai", "www.perplexity.ai"],
+    match: "https://www.perplexity.ai/*",
+  },
+  {
+    id: "copilot",
+    aiName: "Copilot",
+    hosts: ["copilot.microsoft.com", "www.bing.com"],
+    match: "https://copilot.microsoft.com/*",
+  },
   { id: "poe", aiName: "Poe", hosts: ["poe.com", "www.poe.com"], match: "https://poe.com/*" },
   { id: "mistral", aiName: "Mistral", hosts: ["chat.mistral.ai", "mistral.ai"], match: "https://chat.mistral.ai/*" },
   { id: "meta", aiName: "Meta AI", hosts: ["meta.ai", "www.meta.ai"], match: "https://www.meta.ai/*" },
   { id: "doubao", aiName: "Doubao", hosts: ["doubao.com", "www.doubao.com"], match: "https://www.doubao.com/*" },
-  { id: "kimi", aiName: "Kimi", hosts: ["kimi.moonshot.cn", "kimi.com", "www.kimi.com"], match: "https://kimi.moonshot.cn/*" },
-  { id: "qwen", aiName: "Qwen", hosts: ["chat.qwen.ai", "qwen.ai", "tongyi.aliyun.com", "qianwen.aliyun.com"], match: "https://chat.qwen.ai/*" },
+  {
+    id: "kimi",
+    aiName: "Kimi",
+    hosts: ["kimi.moonshot.cn", "kimi.com", "www.kimi.com"],
+    match: "https://kimi.moonshot.cn/*",
+  },
+  {
+    id: "qwen",
+    aiName: "Qwen",
+    hosts: ["chat.qwen.ai", "qwen.ai", "tongyi.aliyun.com", "qianwen.aliyun.com"],
+    match: "https://chat.qwen.ai/*",
+  },
   { id: "yuanbao", aiName: "Yuanbao", hosts: ["yuanbao.tencent.com"], match: "https://yuanbao.tencent.com/*" },
-  { id: "chatglm", aiName: "ChatGLM", hosts: ["chatglm.cn", "www.chatglm.cn", "chatglm.com", "chat.z.ai"], match: "https://chatglm.cn/*" },
-  { id: "ernie", aiName: "ERNIE", hosts: ["yiyan.baidu.com", "chat.baidu.com", "wenxin.baidu.com"], match: "https://yiyan.baidu.com/*" },
+  {
+    id: "chatglm",
+    aiName: "ChatGLM",
+    hosts: ["chatglm.cn", "www.chatglm.cn", "chatglm.com", "chat.z.ai"],
+    match: "https://chatglm.cn/*",
+  },
+  {
+    id: "ernie",
+    aiName: "ERNIE",
+    hosts: ["yiyan.baidu.com", "chat.baidu.com", "wenxin.baidu.com"],
+    match: "https://yiyan.baidu.com/*",
+  },
   { id: "huggingchat", aiName: "HuggingChat", hosts: ["huggingface.co"], match: "https://huggingface.co/chat/*" },
   { id: "duck", aiName: "Duck.ai", hosts: ["duck.ai", "duckduckgo.com"], match: "https://duck.ai/*" },
   { id: "you", aiName: "You.com", hosts: ["you.com", "www.you.com"], match: "https://you.com/*" },
@@ -41,8 +75,16 @@ test("package versions stay in sync", () => {
 
 test("content adapters cover the expected mainstream AI platforms", () => {
   for (const platform of expectedPlatforms) {
-    assert.match(contentSource, new RegExp(`id:\\s*"${escapeRegExp(platform.id)}"`), `${platform.id} adapter is missing`);
-    assert.match(contentSource, new RegExp(`aiName:\\s*"${escapeRegExp(platform.aiName)}"`), `${platform.aiName} label is missing`);
+    assert.match(
+      contentSource,
+      new RegExp(`id:\\s*"${escapeRegExp(platform.id)}"`),
+      `${platform.id} adapter is missing`,
+    );
+    assert.match(
+      contentSource,
+      new RegExp(`aiName:\\s*"${escapeRegExp(platform.aiName)}"`),
+      `${platform.aiName} label is missing`,
+    );
 
     for (const host of platform.hosts) {
       assert.match(contentSource, new RegExp(`"${escapeRegExp(host)}"`), `${platform.id} host ${host} is missing`);
@@ -50,16 +92,13 @@ test("content adapters cover the expected mainstream AI platforms", () => {
   }
 });
 
-test("manifest and custom build script inject content scripts on expected platform hosts", () => {
+test("manifest injects content scripts on expected platform hosts", () => {
   for (const platform of expectedPlatforms) {
     assert.match(manifestSource, new RegExp(`"${escapeRegExp(platform.match)}"`), `manifest missing ${platform.match}`);
-    assert.match(buildSource, new RegExp(`"${escapeRegExp(platform.match)}"`), `build script missing ${platform.match}`);
   }
 
   assert.match(manifestSource, /"https:\/\/\*\.doubao\.com\/\*"/);
-  assert.match(buildSource, /"https:\/\/\*\.doubao\.com\/\*"/);
   assert.match(manifestSource, /"https:\/\/api\.notion\.com\/\*"/);
-  assert.match(buildSource, /"https:\/\/api\.notion\.com\/\*"/);
 });
 
 test("Doubao adapter recognizes current message data-testid structure", () => {
@@ -74,10 +113,16 @@ test("Doubao adapter recognizes current message data-testid structure", () => {
 });
 
 test("content controls are found from the insertion host for Doubao-style nested messages", () => {
-  assert.match(contentSource, /function findExistingControl\(assistant: HTMLElement, insertionTarget: HTMLElement, messageId: string\)/);
+  assert.match(
+    contentSource,
+    /function findExistingControl\(/,
+  );
   assert.match(contentSource, /const insertionTarget = findInsertionTarget\(pair\.assistant\)/);
   assert.match(contentSource, /removeDuplicateControls\(insertionTarget, control\.root\)/);
-  assert.match(contentSource, /findExistingControl\(pair\.assistant, findInsertionTarget\(pair\.assistant\), pair\.messageId\)/);
+  assert.match(
+    contentSource,
+    /findExistingControl\(pair\.assistant, findInsertionTarget\(pair\.assistant\), pair\.messageId\)/,
+  );
 });
 
 test("content sync payload carries adapter identity and namespaces message IDs", () => {
@@ -102,7 +147,11 @@ test("DeepSeek keeps multi-block reasoning and answer sections separated", () =>
 
 test("Notion AI select options include every adapter label", () => {
   for (const platform of expectedPlatforms) {
-    assert.match(backgroundSource, new RegExp(`name:\\s*"${escapeRegExp(platform.aiName)}"`), `AI select missing ${platform.aiName}`);
+    assert.match(
+      backgroundSource,
+      new RegExp(`name:\\s*"${escapeRegExp(platform.aiName)}"`),
+      `AI select missing ${platform.aiName}`,
+    );
   }
 
   assert.match(backgroundSource, /getMissingAiSelectOptions/);

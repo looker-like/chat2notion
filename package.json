@@ -5,14 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "node scripts/build.mjs",
+    "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "format": "prettier --write .",
+    "lint": "eslint ."
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.4.0",
+    "@eslint/js": "^10.0.1",
     "@types/chrome": "^0.1.40",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.1",
+    "ts-morph": "^28.0.0",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.0",
     "vite": "^8.0.10"
   }
 }

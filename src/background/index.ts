@@ -121,7 +121,9 @@ async function handleRuntimeRequest(message: RuntimeRequest): Promise<RuntimeRes
   }
 }
 
-async function saveUserConfig(input: Pick<Chat2NotionConfig, "apiKey" | "databaseId" | "autoSyncEnabled">): Promise<RuntimeResponse> {
+async function saveUserConfig(
+  input: Pick<Chat2NotionConfig, "apiKey" | "databaseId" | "autoSyncEnabled">,
+): Promise<RuntimeResponse> {
   const current = await readConfig();
   const apiKey = input.apiKey.trim();
   const databaseId = normalizeNotionId(input.databaseId);
@@ -238,7 +240,11 @@ async function syncPair(payload: ChatPairPayload, overwrite: boolean): Promise<R
 
     const status: SyncStatus = {
       tone: "success",
-      message: targetPageId ? "Resynced to Notion." : overwrite ? "Original Notion page was not found; created a replacement." : "Synced to Notion.",
+      message: targetPageId
+        ? "Resynced to Notion."
+        : overwrite
+          ? "Original Notion page was not found; created a replacement."
+          : "Synced to Notion.",
       at: new Date().toISOString(),
     };
     await updateLastSyncStatus(status);
@@ -251,7 +257,11 @@ async function syncPair(payload: ChatPairPayload, overwrite: boolean): Promise<R
   }
 }
 
-async function createNotionPage(apiKey: string, dataSourceId: string, payload: ChatPairPayload): Promise<NotionPageResponse> {
+async function createNotionPage(
+  apiKey: string,
+  dataSourceId: string,
+  payload: ChatPairPayload,
+): Promise<NotionPageResponse> {
   const bodyJson = withPageParent(createPageRequestBodyJson(payload), dataSourceId);
 
   assertNotionRequestFits(bodyJson, "Notion page property request");
@@ -345,6 +355,7 @@ async function ensureChat2NotionTarget(apiKey: string, databaseId: string): Prom
       if (isNotionApiError(pageError, 404)) {
         throw new Error(
           `Provided ID is not an accessible Notion database or page. Database check: ${toErrorMessage(databaseError)} Page check: ${toErrorMessage(pageError)}`,
+          { cause: pageError },
         );
       }
 
@@ -354,7 +365,9 @@ async function ensureChat2NotionTarget(apiKey: string, databaseId: string): Prom
 }
 
 async function ensureDatabaseTarget(apiKey: string, databaseId: string): Promise<NotionDataSourceInfo> {
-  const database = await notionFetch<unknown>(apiKey, `/databases/${encodeURIComponent(databaseId)}`, { method: "GET" });
+  const database = await notionFetch<unknown>(apiKey, `/databases/${encodeURIComponent(databaseId)}`, {
+    method: "GET",
+  });
   const resolvedDatabaseId = extractString(database, "id") || databaseId;
   const dataSourceId = extractDataSourceId(database) || databaseId;
   const dataSource = await retrieveDataSource(apiKey, dataSourceId, database, resolvedDatabaseId);
@@ -365,7 +378,9 @@ async function createDatabaseInEmptyPage(apiKey: string, pageId: string): Promis
   await notionFetch<unknown>(apiKey, `/pages/${encodeURIComponent(pageId)}`, { method: "GET" });
 
   if (!(await isPageEmpty(apiKey, pageId))) {
-    throw new Error("Provided ID is a Notion page, but it is not empty. Use an empty page ID or an existing database ID.");
+    throw new Error(
+      "Provided ID is a Notion page, but it is not empty. Use an empty page ID or an existing database ID.",
+    );
   }
 
   const database = await notionFetch<unknown>(apiKey, "/databases", {
@@ -386,7 +401,9 @@ async function createDatabaseInEmptyPage(apiKey: string, pageId: string): Promis
     throw new Error("Notion created a database but did not return its ID.");
   }
 
-  const refreshedDatabase = await notionFetch<unknown>(apiKey, `/databases/${encodeURIComponent(createdDatabaseId)}`, { method: "GET" });
+  const refreshedDatabase = await notionFetch<unknown>(apiKey, `/databases/${encodeURIComponent(createdDatabaseId)}`, {
+    method: "GET",
+  });
   const dataSourceId = extractDataSourceId(refreshedDatabase) || extractDataSourceId(database);
 
   if (!dataSourceId) {
@@ -405,7 +422,9 @@ async function retrieveDataSource(
   databaseId: string,
 ): Promise<NotionDataSourceInfo> {
   try {
-    const dataSource = await notionFetch<unknown>(apiKey, `/data_sources/${encodeURIComponent(dataSourceId)}`, { method: "GET" });
+    const dataSource = await notionFetch<unknown>(apiKey, `/data_sources/${encodeURIComponent(dataSourceId)}`, {
+      method: "GET",
+    });
     return {
       id: extractString(dataSource, "id") || dataSourceId,
       databaseId,
@@ -422,7 +441,10 @@ async function retrieveDataSource(
   }
 }
 
-async function initializeDataSourceProperties(apiKey: string, dataSource: NotionDataSourceInfo): Promise<NotionDataSourceInfo> {
+async function initializeDataSourceProperties(
+  apiKey: string,
+  dataSource: NotionDataSourceInfo,
+): Promise<NotionDataSourceInfo> {
   const issues = getRequiredPropertyIssues(dataSource.properties);
   const missingAiOptions = getMissingAiSelectOptions(dataSource.properties);
 
@@ -459,7 +481,9 @@ async function initializeDataSourceProperties(apiKey: string, dataSource: Notion
 }
 
 async function isPageEmpty(apiKey: string, pageId: string): Promise<boolean> {
-  const children = await notionFetch<unknown>(apiKey, `/blocks/${encodeURIComponent(pageId)}/children?page_size=1`, { method: "GET" });
+  const children = await notionFetch<unknown>(apiKey, `/blocks/${encodeURIComponent(pageId)}/children?page_size=1`, {
+    method: "GET",
+  });
 
   if (!isRecord(children) || !Array.isArray(children.results)) {
     return false;
@@ -481,11 +505,12 @@ function extractDataSourceId(database: unknown): string {
     return directId;
   }
 
-  const results = isRecord(database.data_sources) && Array.isArray(database.data_sources.results)
-    ? database.data_sources.results
-    : Array.isArray(database.results)
-      ? database.results
-      : [];
+  const results =
+    isRecord(database.data_sources) && Array.isArray(database.data_sources.results)
+      ? database.data_sources.results
+      : Array.isArray(database.results)
+        ? database.results
+        : [];
   const firstResult = results.find(isRecord);
 
   return firstResult ? extractString(firstResult, "id") : "";
@@ -502,9 +527,12 @@ function extractProperties(value: unknown): Record<string, { type?: string; sele
     if (isRecord(property)) {
       const type = typeof property.type === "string" ? property.type : undefined;
       const select = isRecord(property.select) ? property.select : null;
-      const selectOptions = select && Array.isArray(select.options)
-        ? select.options.flatMap((option) => (isRecord(option) && typeof option.name === "string" ? [option.name] : []))
-        : undefined;
+      const selectOptions =
+        select && Array.isArray(select.options)
+          ? select.options.flatMap((option) =>
+              isRecord(option) && typeof option.name === "string" ? [option.name] : [],
+            )
+          : undefined;
       properties[name] = { type, selectOptions };
     }
   });
@@ -524,11 +552,16 @@ function validateRequiredProperties(properties: Record<string, { type?: string }
   }
 }
 
-function getRequiredPropertyIssues(properties: Record<string, { type?: string }>): { missing: string[]; incompatible: string[] } {
+function getRequiredPropertyIssues(properties: Record<string, { type?: string }>): {
+  missing: string[];
+  incompatible: string[];
+} {
   const missing: string[] = [];
   const incompatible: string[] = [];
 
-  for (const [name, expectedType] of Object.entries(REQUIRED_PROPERTIES) as Array<[RequiredPropertyName, NotionPropertyType]>) {
+  for (const [name, expectedType] of Object.entries(REQUIRED_PROPERTIES) as Array<
+    [RequiredPropertyName, NotionPropertyType]
+  >) {
     const actualType = properties[name]?.type;
 
     if (!actualType) {
@@ -683,7 +716,11 @@ function toNotionText(content: string): Array<{ type: "text"; text: { content: s
 function createPageRequestBodyJson(payload: ChatPairPayload): string {
   const fullBodyJson = JSON.stringify(createPageRequestBody(payload, false));
 
-  if (getByteLength(fullBodyJson) <= NOTION_SAFE_REQUEST_BODY_LIMIT_BYTES && canUseFullPropertyValue(payload.question) && canUseFullPropertyValue(payload.answer)) {
+  if (
+    getByteLength(fullBodyJson) <= NOTION_SAFE_REQUEST_BODY_LIMIT_BYTES &&
+    canUseFullPropertyValue(payload.question) &&
+    canUseFullPropertyValue(payload.answer)
+  ) {
     return fullBodyJson;
   }
 
@@ -693,7 +730,11 @@ function createPageRequestBodyJson(payload: ChatPairPayload): string {
 function createPagePropertiesBodyJson(payload: ChatPairPayload): string {
   const fullBodyJson = JSON.stringify({ properties: createPageProperties(payload, false) });
 
-  if (getByteLength(fullBodyJson) <= NOTION_SAFE_REQUEST_BODY_LIMIT_BYTES && canUseFullPropertyValue(payload.question) && canUseFullPropertyValue(payload.answer)) {
+  if (
+    getByteLength(fullBodyJson) <= NOTION_SAFE_REQUEST_BODY_LIMIT_BYTES &&
+    canUseFullPropertyValue(payload.question) &&
+    canUseFullPropertyValue(payload.answer)
+  ) {
     return fullBodyJson;
   }
 
@@ -964,10 +1005,6 @@ async function updateLastSyncStatus(status: SyncStatus): Promise<void> {
 async function getSyncedMessages(): Promise<Record<string, SyncedMessageRecord>> {
   const stored = await chrome.storage.local.get(SYNCED_MESSAGES_STORAGE_KEY);
   return readSyncedMessages(stored[SYNCED_MESSAGES_STORAGE_KEY]);
-}
-
-async function isMessageSynced(messageId: string): Promise<boolean> {
-  return Boolean(await getSyncedMessage(messageId));
 }
 
 async function getSyncedMessage(messageId: string): Promise<SyncedMessageRecord | null> {

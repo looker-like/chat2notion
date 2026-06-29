@@ -1,6 +1,10 @@
 :root {
   color-scheme: light;
-  font-family: Avenir Next, Segoe UI, system-ui, sans-serif;
+  font-family:
+    Avenir Next,
+    Segoe UI,
+    system-ui,
+    sans-serif;
   color: #172033;
   background: #f2efe7;
 }

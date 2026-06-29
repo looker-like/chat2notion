@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Chat2Notion</title>
-    <link rel="stylesheet" href="./popup.css">
+    <link rel="stylesheet" href="./popup.css" />
   </head>
   <body>
     <main class="shell">
@@ -20,18 +20,24 @@
         <label class="field">
           <span>Notion API key</span>
           <div class="secret-row">
-            <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="secret_...">
+            <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="secret_..." />
             <button id="toggleSecret" type="button" class="ghost">Show</button>
           </div>
         </label>
 
         <label class="field">
           <span>Database ID</span>
-          <input id="databaseId" type="text" autocomplete="off" spellcheck="false" placeholder="Notion database URL or ID">
+          <input
+            id="databaseId"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Notion database URL or ID"
+          />
         </label>
 
         <label class="switch-row">
-          <input id="autoSyncEnabled" type="checkbox">
+          <input id="autoSyncEnabled" type="checkbox" />
           <span>
             <strong>Global auto-sync all new AI answers</strong>
             <small>Usually leave this off. Use Auto-save chat on an AI answer for one conversation.</small>
@@ -58,6 +64,6 @@
       </footer>
     </main>
 
-    <script src="./popup.ts"></script>
+    <script type="module" src="./popup.ts"></script>
   </body>
 </html>
