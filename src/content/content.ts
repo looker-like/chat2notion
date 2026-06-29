@@ -24,7 +24,7 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
   const AUTO_SYNCED_ATTRIBUTE = "data-chat2notion-auto-synced";
   const CONFIG_STORAGE_KEY = "chat2notionConfig";
   const CONVERSATION_AUTO_SYNC_STORAGE_KEY = "chat2notionConversationAutoSync";
-  const OBSERVER_DEBOUNCE_MS = 700;
+  const OBSERVER_DEBOUNCE_MS = 200;
   const AUTO_SYNC_STABILITY_MS = 2200;
   const MIN_AUTO_SYNC_ANSWER_LENGTH = 2;
 
@@ -140,7 +140,8 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
     }
 
     if (scanTimer !== null) {
-      window.clearTimeout(scanTimer);
+      // Do not delay an already scheduled scan
+      return;
     }
 
     scanTimer = window.setTimeout(() => {
@@ -454,13 +455,15 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
     removeDuplicateControls(insertionTarget, control.root);
     control.root.dataset.messageId = pair.messageId;
     control.button.onclick = () => {
-      void handleManualSync(pair, control);
+      const latestPair = buildChatPair(pair.assistant) || pair;
+      void handleManualSync(latestPair, control);
     };
     control.openButton.onclick = () => {
       openNotionPage(control);
     };
     control.autoButton.onclick = () => {
-      void toggleConversationAutoSync(pair, control);
+      const latestPair = buildChatPair(pair.assistant) || pair;
+      void toggleConversationAutoSync(latestPair, control);
     };
     syncConversationAutoButton(control);
     syncOpenButton(control);

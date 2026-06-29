@@ -108,6 +108,7 @@ export default defineManifest({
       ],
       js: ["src/content/content.ts"],
       run_at: "document_idle",
+      all_frames: true,
     },
   ],
 });

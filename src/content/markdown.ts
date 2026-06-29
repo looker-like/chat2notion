@@ -119,11 +119,40 @@ export function inlineCodeToMarkdown(value: string): string {
   return `${marker}${normalized}${marker}`;
 }
 
+function extractCodeText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent ?? "";
+  }
+  if (!(node instanceof HTMLElement)) {
+    return Array.from(node.childNodes).map(extractCodeText).join("");
+  }
+  
+  const tagName = node.tagName.toLowerCase();
+  const isBlock = ["div", "p", "li", "tr"].includes(tagName);
+  const isBr = tagName === "br";
+  
+  const text = Array.from(node.childNodes).map(extractCodeText).join("");
+  
+  if (isBr) return "\n";
+  if (isBlock) return `${text}\n`;
+  return text;
+}
+
 export function codeBlockToMarkdown(node: HTMLElement): string {
   const code = node.querySelector("code");
-  const languageClass = Array.from(code?.classList ?? []).find((className) => className.startsWith("language-"));
-  const language = languageClass?.replace(/^language-/, "") ?? "";
-  const text = (code?.textContent ?? node.textContent ?? "").replace(/\n+$/, "");
+  
+  // Extract language from class names like language-xxx or lang-xxx on either <code> or <pre>
+  const classList = [...Array.from(code?.classList ?? []), ...Array.from(node.classList)];
+  const languageClass = classList.find(c => c.startsWith("language-") || c.startsWith("lang-"));
+  const language = languageClass?.replace(/^(language|lang)-/, "") ?? "";
+  
+  const targetElement = code ?? node;
+  const rawText = extractCodeText(targetElement);
+  
+  // Replace multiple newlines caused by block element stacking, but keep intentional newlines.
+  // Actually, standardizing on a single newline for block element boundaries is safe here.
+  const text = rawText.replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "");
+  
   return `\n\n\`\`\`${language}\n${text}\n\`\`\`\n\n`;
 }
 

@@ -160,7 +160,7 @@ export const PLATFORM_ADAPTERS: PlatformAdapter[] = [
   {
     id: "copilot",
     aiName: "Copilot",
-    hosts: ["copilot.microsoft.com", "www.bing.com"],
+    hosts: ["copilot.microsoft.com", "www.bing.com", "edgeservices.bing.com", "sydney.bing.com"],
     assistantSelectors: [
       "[data-message-author-role='assistant']",
       "[data-testid*='assistant']",
@@ -177,7 +177,7 @@ export const PLATFORM_ADAPTERS: PlatformAdapter[] = [
       ".user-message",
       "[class*='user']",
     ],
-    contentSelectors: [".markdown", "[class*='markdown']", ".ac-textBlock", "[class*='message']", "[class*='content']"],
+    contentSelectors: ["[data-testid='ai-message-body']", ".markdown", "[class*='markdown']", ".ac-textBlock", "[class*='message']", "[class*='content']"],
     assistantArticlePattern: /assistant|copilot|bing|answer|response/i,
     userArticlePattern: /user|you|question|prompt/i,
     streamingSelectors: ['[aria-label*="Stop"]', '[data-testid*="stop"]', "[class*='stop']"],
