@@ -1,0 +1,13 @@
+export const CONTROL_CLASS = "c2n-control";
+export const CONTROL_ATTRIBUTE = "data-chat2notion-control";
+export const ASSISTANT_PROCESSED_ATTRIBUTE = "data-chat2notion-processed";
+export const AUTO_SYNCED_ATTRIBUTE = "data-chat2notion-auto-synced";
+export const CONFIG_STORAGE_KEY = "chat2notionConfig";
+export const CONVERSATION_AUTO_SYNC_STORAGE_KEY = "chat2notionConversationAutoSync";
+export const OBSERVER_DEBOUNCE_MS = 200;
+export const AUTO_SYNC_STABILITY_MS = 2200;
+export const MIN_AUTO_SYNC_ANSWER_LENGTH = 2;
+export const SYNC_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
+export const SYNCED_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+export const OPEN_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
+export const AUTO_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;

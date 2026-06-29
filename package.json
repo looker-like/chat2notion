@@ -2,11 +2,13 @@
   "name": "chat2notion",
   "version": "0.3.2",
   "private": true,
+  "packageManager": "pnpm@10.27.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
+    "check": "node scripts/check.mjs",
     "test": "node scripts/test.mjs",
     "e2e:check": "node scripts/e2e-check.mjs",
     "format": "prettier --write .",

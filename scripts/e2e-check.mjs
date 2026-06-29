@@ -39,7 +39,7 @@ const PLATFORMS = [
       try {
         await page.waitForSelector("[data-chat2notion-control]", { timeout: 10000 });
         console.log(`✅ ${platform.name}: 成功找到 Chat2Notion 同步按钮！`);
-      } catch (e) {
+      } catch {
         console.error(`❌ ${platform.name}: 未找到同步按钮 (可能是 DOM 更新，或者当前页面没有聊天记录)`);
       }
     } catch (err) {
