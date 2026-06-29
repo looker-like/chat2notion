@@ -1047,7 +1047,14 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
 
     const text = normalizeText(["思考内容", reasoningText, "正式回答", answerText].join("\n\n"));
     const markdown = normalizeMarkdown(
-      ["## 思考内容", reasoningMarkdown, "---", "## 正式回答", answerMarkdown].join("\n\n"),
+      [
+        "<details><summary><h2>思考内容</h2></summary>",
+        reasoningMarkdown,
+        "</details>",
+        "<details><summary><h2>正式回答</h2></summary>",
+        answerMarkdown,
+        "</details>",
+      ].join("\n\n"),
     );
 
     return { text, markdown };

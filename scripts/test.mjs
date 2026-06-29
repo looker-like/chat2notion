@@ -137,8 +137,8 @@ test("multi-platform user-facing copy does not imply ChatGPT-only support", () =
 test("AI platforms keep multi-block reasoning and answer sections separated", () => {
   assert.match(contentSource, /const reasoningBlocks = parts\.slice\(0, -1\)/);
   assert.match(contentSource, /const answerBlock = parts\[parts\.length - 1\]/);
-  assert.match(contentSource, /"## 思考内容"/);
-  assert.match(contentSource, /"## 正式回答"/);
+  assert.ok(contentSource.includes("<details><summary><h2>思考内容</h2></summary>"));
+  assert.ok(contentSource.includes("<details><summary><h2>正式回答</h2></summary>"));
 });
 
 test("Notion AI select options include every adapter label", () => {

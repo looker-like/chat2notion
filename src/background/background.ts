@@ -813,10 +813,12 @@ function createPageMarkdownBackup(payload: ChatPairPayload): string {
     `Synced At: ${new Date().toISOString()}`,
     `Sync Mode: ${payload.syncMode}`,
     `Message ID: ${payload.messageId}`,
-    "## Question",
+    "<details><summary><h2>Question</h2></summary>",
     question,
-    "## Answer",
+    "</details>",
+    "<details><summary><h2>Answer</h2></summary>",
     answer,
+    "</details>",
   ].join("\n\n");
 }
 
