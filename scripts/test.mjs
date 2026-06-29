@@ -113,10 +113,7 @@ test("Doubao adapter recognizes current message data-testid structure", () => {
 });
 
 test("content controls are found from the insertion host for Doubao-style nested messages", () => {
-  assert.match(
-    contentSource,
-    /function findExistingControl\(/,
-  );
+  assert.match(contentSource, /function findExistingControl\(/);
   assert.match(contentSource, /const insertionTarget = findInsertionTarget\(pair\.assistant\)/);
   assert.match(contentSource, /removeDuplicateControls\(insertionTarget, control\.root\)/);
   assert.match(

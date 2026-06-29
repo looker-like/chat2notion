@@ -1,4 +1,12 @@
 import {
+  NotionDataSourceInfo,
+  NotionPageResponse,
+  SyncedMessageRecord,
+  RequiredPropertyName,
+  NotionPropertyType,
+  REQUIRED_PROPERTIES,
+} from "./types";
+import {
   CONFIG_STORAGE_KEY,
   createDefaultConfig,
   type Chat2NotionConfig,
@@ -14,16 +22,7 @@ import {
 import { createTitleFromQuestion, MAX_RICH_TEXT_CHUNKS, splitRichText } from "../shared/text";
 
 const NOTION_API_BASE = "https://api.notion.com/v1";
-const REQUIRED_PROPERTIES = {
-  Name: "title",
-  Question: "rich_text",
-  Answer: "rich_text",
-  AI: "select",
-  "Source URL": "url",
-  "Synced At": "date",
-  "Message ID": "rich_text",
-  "Sync Mode": "select",
-} as const;
+
 const DEFAULT_DATABASE_TITLE = "Chat2Notion";
 const DEFAULT_DATA_SOURCE_TITLE = "Synced Chats";
 const NOTION_REQUEST_BODY_LIMIT_BYTES = 500_000;
@@ -52,26 +51,6 @@ const SUPPORTED_AI_OPTIONS = [
   { name: "You.com", color: "blue" },
   { name: "AI", color: "gray" },
 ] as const;
-
-type RequiredPropertyName = keyof typeof REQUIRED_PROPERTIES;
-type NotionPropertyType = (typeof REQUIRED_PROPERTIES)[RequiredPropertyName];
-
-interface NotionDataSourceInfo {
-  id: string;
-  databaseId: string;
-  properties: Record<string, { type?: string; selectOptions?: string[] }>;
-  createdDatabase?: boolean;
-  initializedSchema?: boolean;
-}
-
-interface NotionPageResponse {
-  id?: string;
-}
-
-interface SyncedMessageRecord {
-  syncedAt: string;
-  notionPageId: string;
-}
 
 class NotionApiError extends Error {
   constructor(
