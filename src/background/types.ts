@@ -26,6 +26,5 @@ export const REQUIRED_PROPERTIES = {
   "Sync Mode": "select",
 } as const;
 
-
 export type RequiredPropertyName = keyof typeof REQUIRED_PROPERTIES;
 export type NotionPropertyType = (typeof REQUIRED_PROPERTIES)[RequiredPropertyName];

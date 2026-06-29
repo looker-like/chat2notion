@@ -253,22 +253,6 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
     return candidates.filter((node) => !candidates.some((other) => other !== node && other.contains(node)));
   }
 
-  function findContentElement(root: HTMLElement, selectors: string[]): HTMLElement | null {
-    for (const selector of selectors) {
-      if (root.matches(selector)) {
-        return root;
-      }
-
-      const child = root.querySelector<HTMLElement>(selector);
-
-      if (child) {
-        return child;
-      }
-    }
-
-    return null;
-  }
-
   function buildChatPair(assistant: HTMLElement): ChatPair | null {
     const adapter = getCurrentAdapter();
     const answer = extractMessageContent(assistant, adapter);
@@ -454,114 +438,6 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
 
     const text = row.textContent?.trim() ?? "";
     return Boolean(text) && !row.querySelector("div.ds-markdown") && !isInsideChat2NotionControl(row);
-  }
-
-  function extractMessageContent(message: HTMLElement, adapter = getCurrentAdapter()): MessageContent {
-    const clone = message.cloneNode(true) as HTMLElement;
-    clone.querySelectorAll(`[${CONTROL_ATTRIBUTE}], script, style, button, svg`).forEach((node) => node.remove());
-
-    if (adapter.id === "deepseek") {
-      const deepSeekContent = extractDeepSeekMessageContent(clone);
-
-      if (deepSeekContent) {
-        return deepSeekContent;
-      }
-    }
-
-    if (adapter.id === "doubao") {
-      const doubaoContent = extractSelectedContentBlocks(
-        clone,
-        "[data-testid='message_text_content'], [data-testid='message_content']",
-      );
-
-      if (doubaoContent) {
-        return doubaoContent;
-      }
-    }
-
-    const content = findContentElement(clone, adapter.contentSelectors) ?? clone;
-    const text = normalizeText(content.innerText || content.textContent || "");
-    const markdownText = normalizeMarkdown(elementToMarkdown(content)) || text;
-
-    return {
-      text,
-      markdown: markdownText,
-    };
-  }
-
-  function extractDeepSeekMessageContent(message: HTMLElement): MessageContent | null {
-    const markdownBlocks = Array.from(message.querySelectorAll<HTMLElement>("div.ds-markdown, .ds-markdown")).filter(
-      (node) => !isInsideChat2NotionControl(node),
-    );
-
-    if (markdownBlocks.length === 0) {
-      return null;
-    }
-
-    const blocks = markdownBlocks
-      .map((block) => ({
-        text: normalizeText(block.innerText || block.textContent || ""),
-        markdown: normalizeMarkdown(elementToMarkdown(block)),
-      }))
-      .filter((block) => block.text || block.markdown);
-
-    if (blocks.length === 0) {
-      return null;
-    }
-
-    if (blocks.length === 1) {
-      return {
-        text: normalizeText(blocks[0].text || blocks[0].markdown),
-        markdown: normalizeMarkdown(blocks[0].markdown || blocks[0].text),
-      };
-    }
-
-    const reasoningBlocks = blocks.slice(0, -1);
-    const answerBlock = blocks[blocks.length - 1];
-    const reasoningText = normalizeText(reasoningBlocks.map((block) => block.text || block.markdown).join("\n\n"));
-    const answerText = normalizeText(answerBlock.text || answerBlock.markdown);
-    const reasoningMarkdown = normalizeMarkdown(
-      reasoningBlocks.map((block) => block.markdown || block.text).join("\n\n"),
-    );
-    const answerMarkdown = normalizeMarkdown(answerBlock.markdown || answerBlock.text);
-    const text = normalizeText(["思考内容", reasoningText, "正式回答", answerText].join("\n\n"));
-    const markdown = normalizeMarkdown(
-      ["## 思考内容", reasoningMarkdown, "---", "## 正式回答", answerMarkdown].join("\n\n"),
-    );
-
-    return { text, markdown };
-  }
-
-  function extractSelectedContentBlocks(message: HTMLElement, selector: string): MessageContent | null {
-    const seen = new Set<HTMLElement>();
-    const blocks: HTMLElement[] = [];
-
-    if (message.matches(selector)) {
-      seen.add(message);
-      blocks.push(message);
-    }
-
-    message.querySelectorAll<HTMLElement>(selector).forEach((node) => {
-      if (!seen.has(node) && !isInsideChat2NotionControl(node)) {
-        seen.add(node);
-        blocks.push(node);
-      }
-    });
-
-    const parts = blocks
-      .map((block) => ({
-        text: normalizeText(block.innerText || block.textContent || ""),
-        markdown: normalizeMarkdown(elementToMarkdown(block)),
-      }))
-      .filter((block) => block.text || block.markdown);
-
-    if (parts.length === 0) {
-      return null;
-    }
-
-    const text = normalizeText(parts.map((block) => block.text || block.markdown).join("\n\n"));
-    const markdown = normalizeMarkdown(parts.map((block) => block.markdown || block.text).join("\n\n"));
-    return { text, markdown };
   }
 
   function ensureControl(pair: ChatPair): void {
@@ -1108,5 +984,72 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
 }
 `;
     document.documentElement.append(style);
+  }
+
+  function extractMessageContent(message: HTMLElement, adapter = getCurrentAdapter()): MessageContent {
+    const clone = message.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll(`[${CONTROL_ATTRIBUTE}], script, style, button, svg`).forEach((node) => node.remove());
+
+    let elements: HTMLElement[] = [];
+
+    // Find all independent content blocks matching the first successful selector
+    for (const selector of adapter.contentSelectors) {
+      if (clone.matches(selector)) {
+        elements = [clone];
+        break;
+      }
+
+      const children = Array.from(clone.querySelectorAll<HTMLElement>(selector)).filter(
+        (node) => !isInsideChat2NotionControl(node),
+      );
+
+      if (children.length > 0) {
+        // Filter out nested matches
+        elements = children.filter((child) => !children.some((other) => other !== child && other.contains(child)));
+        break;
+      }
+    }
+
+    if (elements.length === 0) {
+      elements = [clone];
+    }
+
+    const parts = elements
+      .map((block) => ({
+        text: normalizeText(block.innerText || block.textContent || ""),
+        markdown: normalizeMarkdown(elementToMarkdown(block)),
+      }))
+      .filter((block) => block.text || block.markdown);
+
+    if (parts.length === 0) {
+      const text = normalizeText(clone.innerText || clone.textContent || "");
+      const markdown = normalizeMarkdown(elementToMarkdown(clone)) || text;
+      return { text, markdown };
+    }
+
+    if (parts.length === 1) {
+      return {
+        text: normalizeText(parts[0].text || parts[0].markdown),
+        markdown: normalizeMarkdown(parts[0].markdown || parts[0].text),
+      };
+    }
+
+    // For multiple blocks (e.g. ChatGLM, DeepSeek, Doubao, Kimi), treat all but the last as Reasoning / Search Process
+    const reasoningBlocks = parts.slice(0, -1);
+    const answerBlock = parts[parts.length - 1];
+
+    const reasoningText = normalizeText(reasoningBlocks.map((block) => block.text || block.markdown).join("\n\n"));
+    const answerText = normalizeText(answerBlock.text || answerBlock.markdown);
+    const reasoningMarkdown = normalizeMarkdown(
+      reasoningBlocks.map((block) => block.markdown || block.text).join("\n\n"),
+    );
+    const answerMarkdown = normalizeMarkdown(answerBlock.markdown || answerBlock.text);
+
+    const text = normalizeText(["思考内容", reasoningText, "正式回答", answerText].join("\n\n"));
+    const markdown = normalizeMarkdown(
+      ["## 思考内容", reasoningMarkdown, "---", "## 正式回答", answerMarkdown].join("\n\n"),
+    );
+
+    return { text, markdown };
   }
 })();

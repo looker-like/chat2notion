@@ -108,7 +108,6 @@ test("Doubao adapter recognizes current message data-testid structure", () => {
   assert.match(contentSource, /"div\[data-testid='message_text_content'\]"/);
   assert.match(contentSource, /function getDoubaoAssistantMessages/);
   assert.match(contentSource, /function findPreviousDoubaoUserMessage/);
-  assert.match(contentSource, /function extractSelectedContentBlocks/);
   assert.match(contentSource, /closest<HTMLElement>\("\[data-testid='union_message'\]"\)/);
 });
 
@@ -135,9 +134,9 @@ test("multi-platform user-facing copy does not imply ChatGPT-only support", () =
   assert.doesNotMatch(contentSource, /ChatGPT conversation/);
 });
 
-test("DeepSeek keeps multi-block reasoning and answer sections separated", () => {
-  assert.match(contentSource, /function extractDeepSeekMessageContent/);
-  assert.match(contentSource, /querySelectorAll<HTMLElement>\("div\.ds-markdown, \.ds-markdown"\)/);
+test("AI platforms keep multi-block reasoning and answer sections separated", () => {
+  assert.match(contentSource, /const reasoningBlocks = parts\.slice\(0, -1\)/);
+  assert.match(contentSource, /const answerBlock = parts\[parts\.length - 1\]/);
   assert.match(contentSource, /"## 思考内容"/);
   assert.match(contentSource, /"## 正式回答"/);
 });
