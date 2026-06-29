@@ -1,6 +1,7 @@
 # Chat2Notion
 
 Manifest V3 browser extension that syncs AI question/answer pairs to a Notion database.
+Directly save the AI chat records you want to collect into the Notion database.
 
 ## Behavior
 
