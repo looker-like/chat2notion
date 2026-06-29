@@ -28,6 +28,11 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
   const AUTO_SYNC_STABILITY_MS = 2200;
   const MIN_AUTO_SYNC_ANSWER_LENGTH = 2;
 
+  const SYNC_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
+  const SYNCED_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+  const OPEN_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
+  const AUTO_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+
   interface ChatPair {
     assistant: HTMLElement;
     aiName: string;
@@ -480,17 +485,21 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.role = "sync";
-    button.textContent = "Sync to Notion";
+    button.title = "Sync to Notion";
+    button.innerHTML = SYNC_ICON;
 
     const openButton = document.createElement("button");
     openButton.type = "button";
     openButton.dataset.role = "notion-open";
-    openButton.textContent = "Open in Notion";
+    openButton.title = "Open in Notion";
+    openButton.innerHTML = OPEN_ICON;
     openButton.hidden = true;
 
     const autoButton = document.createElement("button");
     autoButton.type = "button";
     autoButton.dataset.role = "conversation-auto-sync";
+    autoButton.title = "Auto-save chat";
+    autoButton.innerHTML = AUTO_ICON;
 
     const status = document.createElement("span");
     status.textContent = "";
@@ -520,12 +529,15 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
     }
 
     button.dataset.role = "sync";
-    button.textContent ||= "Sync to Notion";
+    if (!button.innerHTML) {
+      button.innerHTML = SYNC_ICON;
+    }
 
     if (!openButton.parentElement) {
       openButton.type = "button";
       openButton.dataset.role = "notion-open";
-      openButton.textContent = "Open in Notion";
+      openButton.innerHTML = OPEN_ICON;
+      openButton.title = "Open in Notion";
       openButton.hidden = true;
       root.insertBefore(openButton, autoButton.parentElement ? autoButton : status.parentElement ? status : null);
     }
@@ -533,6 +545,7 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
     if (!autoButton.parentElement) {
       autoButton.type = "button";
       autoButton.dataset.role = "conversation-auto-sync";
+      autoButton.innerHTML = AUTO_ICON;
       root.append(autoButton);
     }
 
@@ -661,7 +674,7 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
   }
 
   function syncConversationAutoButton(control: ControlNodes): void {
-    control.autoButton.textContent = conversationAutoSyncEnabled ? "Auto-save chat: On" : "Auto-save chat";
+    control.autoButton.innerHTML = AUTO_ICON;
     control.autoButton.dataset.enabled = conversationAutoSyncEnabled ? "true" : "false";
     control.autoButton.title = conversationAutoSyncEnabled
       ? "Disable automatic Notion sync for this AI conversation."
@@ -745,8 +758,19 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
     control.root.dataset.state = state;
     control.status.textContent = message;
     control.button.disabled = state === "pending";
-    control.button.textContent = state === "synced" ? "Synced" : state === "pending" ? "Syncing" : "Sync to Notion";
-    control.button.title = state === "synced" ? "Click to resync and overwrite the existing Notion page." : "";
+    if (state === "pending") {
+      control.button.classList.add("c2n-pending");
+      control.button.innerHTML = SYNC_ICON;
+      control.button.title = "Syncing...";
+    } else if (state === "synced") {
+      control.button.classList.remove("c2n-pending");
+      control.button.innerHTML = SYNCED_ICON;
+      control.button.title = "Synced. Click to resync and overwrite the existing Notion page.";
+    } else {
+      control.button.classList.remove("c2n-pending");
+      control.button.innerHTML = SYNC_ICON;
+      control.button.title = "Sync to Notion";
+    }
     control.autoButton.disabled = state === "pending";
     syncOpenButton(control);
   }
@@ -951,16 +975,23 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
   font: 12px/1.4 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .${CONTROL_CLASS} button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: 1px solid #c8d1e1;
-  border-radius: 999px;
-  padding: 5px 10px;
+  border-radius: 50%;
+  padding: 0;
   color: #18314f;
   background: #f8fbff;
   cursor: pointer;
+  transition: all 0.2s ease-in-out;
 }
 .${CONTROL_CLASS} button:hover:not(:disabled) {
   border-color: #5179bd;
   background: #eef5ff;
+  color: #1a56db;
 }
 .${CONTROL_CLASS} button[data-role="conversation-auto-sync"] {
   border-color: #d7b56d;
@@ -972,9 +1003,24 @@ import { PlatformAdapter, PLATFORM_ADAPTERS, FALLBACK_ADAPTER } from "./adapters
   color: #155a32;
   background: #eaf8ef;
 }
+.${CONTROL_CLASS} button[data-role="conversation-auto-sync"]:hover:not(:disabled) {
+  border-color: #c2953a;
+  background: #fff2d1;
+}
+.${CONTROL_CLASS} button[data-role="conversation-auto-sync"][data-enabled="true"]:hover:not(:disabled) {
+  border-color: #235e38;
+  background: #d5f2df;
+}
 .${CONTROL_CLASS} button:disabled {
   cursor: default;
-  opacity: 0.72;
+  opacity: 0.5;
+}
+@keyframes c2n-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.${CONTROL_CLASS} button.c2n-pending svg {
+  animation: c2n-spin 1.2s linear infinite;
 }
 .${CONTROL_CLASS} span {
   color: #617089;
