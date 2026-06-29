@@ -4,11 +4,11 @@ import path from "node:path";
 import test from "node:test";
 
 const root = process.cwd();
-const contentSource = read("src/content/adapters.ts") + "\n" + read("src/content/content.ts");
-const backgroundSource = read("src/background/background.ts");
+const contentSource = readSourceTree("src/content");
+const backgroundSource = readSourceTree("src/background");
 const manifestSource = read("manifest.config.ts");
 const packageJson = JSON.parse(read("package.json"));
-const packageLock = JSON.parse(read("package-lock.json"));
+const pnpmLock = read("pnpm-lock.yaml");
 
 const expectedPlatforms = [
   { id: "chatgpt", aiName: "ChatGPT", hosts: ["chatgpt.com", "chat.openai.com"], match: "https://chatgpt.com/*" },
@@ -68,8 +68,8 @@ const expectedPlatforms = [
 ];
 
 test("package versions stay in sync", () => {
-  assert.equal(packageJson.version, packageLock.version);
-  assert.equal(packageJson.version, packageLock.packages[""].version);
+  assert.match(pnpmLock, /^lockfileVersion:\s*'9\.0'/);
+  assert.match(pnpmLock, /^\s+\.:/m);
   assert.match(manifestSource, new RegExp(`version:\\s*"${escapeRegExp(packageJson.version)}"`));
 });
 
@@ -157,6 +157,23 @@ test("Notion AI select options include every adapter label", () => {
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
+}
+
+function readSourceTree(relativePath) {
+  return listSourceFiles(path.join(root, relativePath))
+    .map((filePath) => fs.readFileSync(filePath, "utf8"))
+    .join("\n");
+}
+
+function listSourceFiles(directory) {
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const entryPath = path.join(directory, entry.name);
+      return entry.isDirectory() ? listSourceFiles(entryPath) : [entryPath];
+    })
+    .filter((filePath) => filePath.endsWith(".ts"))
+    .sort();
 }
 
 function escapeRegExp(value) {

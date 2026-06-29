@@ -25,10 +25,10 @@ Directly save the AI chat records you want to collect into the Notion database.
 ## Development
 
 ```bash
-npm install
-npm run typecheck
-npm test
-npm run build
+pnpm install
+pnpm run typecheck
+pnpm test
+pnpm run build
 ```
 
 Load the generated `dist` directory from `chrome://extensions` or `edge://extensions`.

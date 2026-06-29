@@ -1,4 +1,4 @@
-import { Project, SyntaxKind } from "ts-morph";
+import { Project } from "ts-morph";
 
 const project = new Project();
 const backgroundFile = project.addSourceFileAtPath("src/background/background.ts");

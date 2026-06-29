@@ -1,0 +1,43 @@
+import { PlatformAdapter } from "./types";
+
+export const doubaoAdapter: PlatformAdapter = {
+        id: "doubao",
+        aiName: "Doubao",
+        hosts: ["doubao.com", "www.doubao.com"],
+        assistantSelectors: [
+          "div[data-testid='receive_message']",
+          "[data-testid='receive_message']",
+          "[data-message-author-role='assistant']",
+          "[data-role='assistant']",
+          "[data-testid*='assistant']",
+          "[data-testid*='answer']",
+          ".assistant-message",
+          ".ai-message",
+          "[class*='assistant']",
+          "[class*='answer']",
+        ],
+        userSelectors: [
+          "div[data-testid='send_message']",
+          "[data-testid='send_message']",
+          "[data-message-author-role='user']",
+          "[data-role='user']",
+          "[data-testid*='user']",
+          "[data-testid*='question']",
+          ".user-message",
+          "[class*='user']",
+          "[class*='question']",
+        ],
+        contentSelectors: [
+          "div[data-testid='message_text_content']",
+          "[data-testid='message_text_content']",
+          "[data-testid='message_content']",
+          ".markdown",
+          "[class*='markdown']",
+          "[class*='message']",
+          "[class*='content']",
+          "[class*='answer']",
+        ],
+        assistantArticlePattern: /assistant|answer|response|豆包|回答/i,
+        userArticlePattern: /user|question|prompt|用户|提问/i,
+        streamingSelectors: ['[aria-label*="Stop"]', '[aria-label*="停止"]', '[data-testid*="stop"]', "[class*='stop']"],
+      };
