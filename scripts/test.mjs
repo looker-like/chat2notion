@@ -4,8 +4,8 @@ import path from "node:path";
 import test from "node:test";
 
 const root = process.cwd();
-const contentSource = read("src/content/adapters.ts") + "\n" + read("src/content/index.ts");
-const backgroundSource = read("src/background/index.ts");
+const contentSource = read("src/content/adapters.ts") + "\n" + read("src/content/content.ts");
+const backgroundSource = read("src/background/background.ts");
 const manifestSource = read("manifest.config.ts");
 const packageJson = JSON.parse(read("package.json"));
 const packageLock = JSON.parse(read("package-lock.json"));

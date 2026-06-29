@@ -11,7 +11,7 @@ export default defineManifest({
   },
   options_page: "src/popup/popup.html",
   background: {
-    service_worker: "src/background/index.ts",
+    service_worker: "src/background/background.ts",
     type: "module",
   },
   permissions: ["storage", "activeTab"],
@@ -106,7 +106,7 @@ export default defineManifest({
         "https://*.grok.com/*",
         "https://x.com/i/grok*",
       ],
-      js: ["src/content/index.ts"],
+      js: ["src/content/content.ts"],
       run_at: "document_idle",
     },
   ],
