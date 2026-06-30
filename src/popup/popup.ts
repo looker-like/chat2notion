@@ -6,8 +6,10 @@
   const openSettingsPageButton = query<HTMLButtonElement>("#openSettingsPage");
   const testConnectionButton = query<HTMLButtonElement>("#testConnection");
   const saveConfigButton = query<HTMLButtonElement>("#saveConfig");
+  const diagnosePageButton = query<HTMLButtonElement>("#diagnosePage");
   const statusNode = query<HTMLParagraphElement>("#status");
   const lastSyncNode = query<HTMLParagraphElement>("#lastSync");
+  const pageDiagnosticsNode = query<HTMLParagraphElement>("#pageDiagnostics");
   const connectionBadge = query<HTMLSpanElement>("#connectionBadge");
 
   interface Chat2NotionConfig {
@@ -20,6 +22,15 @@
 
   type RuntimeResponse =
     { ok: true; config: Chat2NotionConfig } | { ok: true; message?: string } | { ok: false; message: string };
+
+  interface PageDiagnostics {
+    platformId: string;
+    aiName: string;
+    assistantCount: number;
+    pairCount: number;
+    controlCount: number;
+    ready: boolean;
+  }
 
   void initialize();
 
@@ -57,6 +68,10 @@
 
     testConnectionButton.addEventListener("click", () => {
       void testConnection();
+    });
+
+    diagnosePageButton.addEventListener("click", () => {
+      void diagnosePage();
     });
   }
 
@@ -136,6 +151,29 @@
     }
   }
 
+  async function diagnosePage(): Promise<void> {
+    diagnosePageButton.disabled = true;
+    pageDiagnosticsNode.textContent = "Checking current tab...";
+
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+      if (!tab?.id) {
+        throw new Error("No active tab found.");
+      }
+
+      const response = await chrome.tabs.sendMessage(tab.id, { type: "chat2notion:diagnosePage" });
+      const diagnostics = readDiagnostics(response);
+      pageDiagnosticsNode.textContent = diagnostics.ready
+        ? `${diagnostics.aiName}: ${diagnostics.controlCount}/${diagnostics.pairCount} sync controls ready.`
+        : `${diagnostics.aiName}: found ${diagnostics.assistantCount} assistant messages, ${diagnostics.controlCount} controls.`;
+    } catch (error) {
+      pageDiagnosticsNode.textContent = `${toErrorMessage(error)} Open a supported AI chat tab and refresh it.`;
+    } finally {
+      diagnosePageButton.disabled = false;
+    }
+  }
+
   async function reloadConfig(): Promise<void> {
     const response = await sendMessage({ type: "chat2notion:getConfig" });
 
@@ -160,6 +198,7 @@
     apiKeyInput.disabled = isBusy;
     databaseIdInput.disabled = isBusy;
     autoSyncInput.disabled = isBusy;
+    diagnosePageButton.disabled = isBusy;
   }
 
   function setStatus(message: string, tone: "neutral" | "pending" | "success" | "error"): void {
@@ -182,6 +221,20 @@
 
   function toErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : "Unexpected popup error.";
+  }
+
+  function readDiagnostics(response: unknown): PageDiagnostics {
+    if (!response || typeof response !== "object") {
+      throw new Error("No diagnostics response from the current tab.");
+    }
+
+    const diagnostics = (response as { diagnostics?: PageDiagnostics }).diagnostics;
+
+    if (!diagnostics) {
+      throw new Error("Current tab did not return Chat2Notion diagnostics.");
+    }
+
+    return diagnostics;
   }
 
   function query<T extends Element>(selector: string): T {

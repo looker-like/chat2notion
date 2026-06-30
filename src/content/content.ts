@@ -14,6 +14,7 @@ import { createConversationKey, readConversationAutoSyncState } from "./messages
 import { buildChatPair, getAssistantMessages, isAnswerStillStreaming } from "./platform";
 import { createRuntimeClient } from "./runtime";
 import { handleManualSync, initializeSyncedState, syncPair } from "./sync";
+import { createPageDiagnostics, isDiagnosticsRequest } from "./diagnostics";
 import {
   createControl,
   ensureStyles,
@@ -59,6 +60,16 @@ import {
       }
 
       void refreshConversationAutoSync().then(() => scheduleScan(100));
+    });
+
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (!isDiagnosticsRequest(message)) {
+        return false;
+      }
+
+      scanPage();
+      sendResponse({ ok: true, diagnostics: createPageDiagnostics() });
+      return false;
     });
 
     window.addEventListener("popstate", () => {

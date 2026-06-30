@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.27.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "node scripts/dev.mjs",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "check": "node scripts/check.mjs",

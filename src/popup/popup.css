@@ -109,11 +109,19 @@ h2 {
   padding: 12px 14px;
 }
 
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .panel p,
 .field span,
 .switch-row small,
 .status,
-#lastSync {
+#lastSync,
+#pageDiagnostics {
   color: #637083;
   font-size: 12px;
   line-height: 1.45;
@@ -200,6 +208,13 @@ input:focus {
   border-radius: 12px;
   padding: 0 13px;
   font-weight: 800;
+}
+
+.ghost.small {
+  min-height: 28px;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .primary {
