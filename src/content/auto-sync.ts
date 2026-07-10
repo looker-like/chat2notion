@@ -2,7 +2,7 @@
 // Encapsulates the per-conversation auto-sync toggle, state persistence,
 // button synchronization, and debounced auto-sync scheduling.
 
-import { CONVERSATION_AUTO_SYNC_STORAGE_KEY, AUTO_SYNCED_ATTRIBUTE, MIN_AUTO_SYNC_ANSWER_LENGTH, AUTO_SYNC_STABILITY_MS } from "./constants";
+import { CONVERSATION_AUTO_SYNC_STORAGE_KEY, AUTO_SYNCED_ATTRIBUTE, AUTO_ICON, MIN_AUTO_SYNC_ANSWER_LENGTH, AUTO_SYNC_STABILITY_MS } from "./constants";
 import { readConversationAutoSyncState } from "./messages";
 import { buildChatPair, isAnswerStillStreaming } from "./platform";
 import type { RuntimeClient } from "./runtime";
@@ -113,7 +113,7 @@ export class AutoSyncManager {
 
   // Update the UI of all auto-sync buttons to reflect the current state.
   syncButton(control: ControlNodes): void {
-    control.autoButton.innerHTML = "";
+    control.autoButton.innerHTML = AUTO_ICON;
     control.autoButton.dataset.enabled = this.enabled ? "true" : "false";
     control.autoButton.title = this.enabled
       ? "Disable automatic Notion sync for this AI conversation."

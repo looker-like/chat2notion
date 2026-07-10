@@ -162,13 +162,12 @@ export function createNotionPageUrl(notionPageId: string): string {
   return `https://www.notion.so/${notionPageId.replace(/-/g, "")}`;
 }
 
-// Inject the control bar stylesheet once, if not already present.
+// Inject or update the control bar stylesheet.
+// Always updates the content so extension reloads pick up CSS changes
+// even when the page itself is not refreshed.
 export function ensureStyles(): void {
-  if (document.getElementById("chat2notion-style")) {
-    return;
-  }
-
-  const style = document.createElement("style");
+  const existing = document.getElementById("chat2notion-style");
+  const style = existing ?? document.createElement("style");
   style.id = "chat2notion-style";
   style.textContent = `
 .${CONTROL_CLASS} {
@@ -214,6 +213,9 @@ export function ensureStyles(): void {
 .${CONTROL_CLASS} button[data-role="conversation-auto-sync"][data-enabled="true"]:hover:not(:disabled) {
   border-color: #235e38;
   background: #d5f2df;
+}
+.${CONTROL_CLASS} button[hidden] {
+  display: none !important;
 }
 .${CONTROL_CLASS} button:disabled {
   cursor: default;
