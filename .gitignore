@@ -1,3 +1,4 @@
+*.test-run.js
 node_modules/
 dist/
 .vite/

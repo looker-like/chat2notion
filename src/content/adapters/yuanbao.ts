@@ -1,4 +1,5 @@
 // Yuanbao adapter: matches Tencent Yuanbao chat interface.
+// DOM structure uses .agent-chat__list__item--ai / --human for role discrimination.
 import { PlatformAdapter } from "./types";
 
 export const yuanbaoAdapter: PlatformAdapter = {
@@ -6,28 +7,21 @@ export const yuanbaoAdapter: PlatformAdapter = {
         aiName: "Yuanbao",
         hosts: ["yuanbao.tencent.com"],
         assistantSelectors: [
-          "[data-message-author-role='assistant']",
-          "[data-role='assistant']",
-          "[data-testid*='assistant']",
-          ".assistant-message",
-          ".ai-message",
-          "[class*='assistant']",
-          "[class*='answer']",
+          ".agent-chat__list__item--ai",
+          "[class*='agent-chat__list__item--ai']",
+          ".agent-chat__bubble--ai",
+          "[class*='hyc-content-md']",
         ],
         userSelectors: [
-          "[data-message-author-role='user']",
-          "[data-role='user']",
-          "[data-testid*='user']",
-          ".user-message",
-          "[class*='user']",
-          "[class*='question']",
+          ".agent-chat__list__item--human",
+          "[class*='agent-chat__list__item--human']",
         ],
         contentSelectors: [
-          ".markdown",
-          "[class*='markdown']",
-          "[class*='message']",
-          "[class*='content']",
-          "[class*='answer']",
+          ".hyc-content-md",
+          ".hyc-common-markdown",
+          ".agent-chat__bubble__content",
+          "[class*='hyc-content-md']",
+          "[class*='hyc-common-markdown']",
         ],
         assistantArticlePattern: /assistant|yuanbao|answer|response|元宝|回答/i,
         userArticlePattern: /user|question|prompt|用户|提问/i,

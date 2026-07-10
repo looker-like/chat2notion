@@ -4,7 +4,7 @@ import { PlatformAdapter } from "./types";
 export const qwenAdapter: PlatformAdapter = {
         id: "qwen",
         aiName: "Qwen",
-        hosts: ["chat.qwen.ai", "qwen.ai", "tongyi.aliyun.com", "qianwen.aliyun.com"],
+        hosts: ["chat.qwen.ai", "qwen.ai", "tongyi.aliyun.com", "qianwen.aliyun.com", "www.qianwen.com"],
         assistantSelectors: [
           "[data-message-author-role='assistant']",
           "[data-role='assistant']",

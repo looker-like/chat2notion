@@ -46,7 +46,7 @@ const expectedPlatforms = [
   {
     id: "qwen",
     aiName: "Qwen",
-    hosts: ["chat.qwen.ai", "qwen.ai", "tongyi.aliyun.com", "qianwen.aliyun.com"],
+    hosts: ["chat.qwen.ai", "qwen.ai", "tongyi.aliyun.com", "qianwen.aliyun.com", "www.qianwen.com"],
     match: "https://chat.qwen.ai/*",
   },
   { id: "yuanbao", aiName: "Yuanbao", hosts: ["yuanbao.tencent.com"], match: "https://yuanbao.tencent.com/*" },
