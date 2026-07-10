@@ -1,3 +1,5 @@
+// Platform adapter registry: imports all supported AI platform adapters and
+// exposes them as a flat array plus a heuristic fallback for unknown platforms.
 import { PlatformAdapter } from "./adapters/types";
 import { chatgptAdapter } from "./adapters/chatgpt";
 import { geminiAdapter } from "./adapters/gemini";

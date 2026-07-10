@@ -1,8 +1,13 @@
+// Markdown backup generation and chunking for Notion page bodies.
+// The Markdown backup preserves full formatting (links, headings, lists,
+// code blocks, tables) that cannot be represented in database properties.
+
 import type { ChatPairPayload } from "../shared/config";
 import { getByteLength } from "./request-size";
 
 const MARKDOWN_CHUNK_CONTENT_LIMIT_BYTES = 340_000;
 
+// Build a complete Markdown backup document for a synced chat pair.
 export function createPageMarkdownBackup(payload: ChatPairPayload): string {
   const question = normalizeMarkdownBackup(payload.questionMarkdown || payload.question);
   const answer = normalizeMarkdownBackup(payload.answerMarkdown || payload.answer);
@@ -24,6 +29,7 @@ export function createPageMarkdownBackup(payload: ChatPairPayload): string {
   ].join("\n\n");
 }
 
+// Normalize whitespace in Markdown content before storing it.
 export function normalizeMarkdownBackup(value: string): string {
   return value
     .replace(/\u00a0/g, " ")
@@ -32,10 +38,13 @@ export function normalizeMarkdownBackup(value: string): string {
     .trim();
 }
 
+// Escape closing parentheses in URLs so Markdown link syntax isn't broken.
 export function escapeMarkdownUrl(value: string): string {
   return value.replace(/\)/g, "%29");
 }
 
+// Split a Markdown document into chunks suitable for Notion's insert_content API.
+// Tries to break at paragraph boundaries; code blocks are kept intact.
 export function splitMarkdownForNotion(markdown: string): string[] {
   const units = splitMarkdownUnits(markdown);
   const chunks: string[] = [];
@@ -63,6 +72,8 @@ export function splitMarkdownForNotion(markdown: string): string[] {
   return chunks.length > 0 ? chunks : ["No content captured."];
 }
 
+// Split Markdown into semantic units: each unit is a contiguous block of
+// non-empty lines, with fenced code blocks treated as a single unit.
 export function splitMarkdownUnits(markdown: string): string[] {
   const units: string[] = [];
   const lines = normalizeMarkdownBackup(markdown).split("\n");
@@ -87,6 +98,7 @@ export function splitMarkdownUnits(markdown: string): string[] {
   return units;
 }
 
+// Split a single oversized text unit into byte-limited chunks.
 export function splitTextByByteLimit(value: string, byteLimit: number): string[] {
   const chunks: string[] = [];
   const encoder = new TextEncoder();
@@ -113,6 +125,7 @@ export function splitTextByByteLimit(value: string, byteLimit: number): string[]
   return chunks;
 }
 
+// Append a non-empty unit to the units array.
 export function flushMarkdownUnit(units: string[], lines: string[]): void {
   const unit = lines.join("\n").trim();
 
@@ -121,6 +134,7 @@ export function flushMarkdownUnit(units: string[], lines: string[]): void {
   }
 }
 
+// Append a non-empty chunk to the chunks array.
 export function flushMarkdownChunk(chunks: string[], chunk: string): void {
   const normalized = chunk.trim();
 

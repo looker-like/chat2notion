@@ -1,8 +1,16 @@
+﻿// Message ID generation, content extraction helpers, and conversation tracking.
+// These utilities are shared between the content script's scanning logic
+// and the platform adapter system.
+
 import { normalizeMarkdown, elementToMarkdown } from "./markdown";
 import type { PlatformAdapter } from "./adapters/types";
 import { CONTROL_ATTRIBUTE } from "./constants";
 import type { MessageContent } from "./types";
 
+// Extract message content from a DOM node using the platform adapter's selectors.
+// Strips injected controls, scripts, and styles before conversion.
+// For multi-block responses (e.g., reasoning + answer), all but the last
+// block are treated as reasoning/search content under collapsible headings.
 export function extractMessageContent(message: HTMLElement, adapter: PlatformAdapter): MessageContent {
     const clone = message.cloneNode(true) as HTMLElement;
     clone.querySelectorAll(`[${CONTROL_ATTRIBUTE}], script, style, button, svg`).forEach((node) => node.remove());
@@ -77,6 +85,8 @@ export function extractMessageContent(message: HTMLElement, adapter: PlatformAda
     return { text, markdown };
   }
 
+// Generate a deterministic message ID from question, answer, URL, and platform.
+// The ID is used to deduplicate syncs and detect already-synced messages.
 export function createMessageId(question: string, answer: string, sourceUrl: string, platformId: string): string {
     const url = new URL(sourceUrl);
     const platformSeed = platformId === "chatgpt" ? "" : `${platformId}|`;
@@ -84,6 +94,7 @@ export function createMessageId(question: string, answer: string, sourceUrl: str
     return `${platformId}-${hashString(seed)}`;
   }
 
+// FNV-1a hash for generating short deterministic IDs from strings.
 export function hashString(value: string): string {
     let hash = 2166136261;
 
@@ -95,6 +106,7 @@ export function hashString(value: string): string {
     return (hash >>> 0).toString(16).padStart(8, "0");
   }
 
+// Normalize whitespace: collapse non-breaking spaces, collapse runs of whitespace, trim.
 export function normalizeText(value: string): string {
     return value
       .replace(/\u00a0/g, " ")
@@ -102,11 +114,14 @@ export function normalizeText(value: string): string {
       .trim();
   }
 
+// Generate a conversation key from the current URL.
+// Used for per-conversation auto-sync storage.
 export function createConversationKey(): string {
     const url = new URL(location.href);
     return `${url.origin}${url.pathname.replace(/\/$/, "") || "/new-chat"}`;
   }
 
+// Parse the per-conversation auto-sync state from storage, filtering out invalid entries.
 export function readConversationAutoSyncState(
     value: unknown,
   ): Record<string, { enabled: true; sourceUrl: string; updatedAt: string }> {

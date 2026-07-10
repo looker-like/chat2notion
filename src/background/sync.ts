@@ -1,9 +1,14 @@
+// Core sync orchestration for the background worker.
+// Coordinates config reading, Notion target resolution, page creation/update,
+// and storage of the sync result.
+
 import type { RuntimeResponse, ChatPairPayload, SyncStatus } from "../shared/config";
 import { ensureChat2NotionTarget } from "./notion-target";
 import { assertSyncPayload, createNotionPage, resolveSyncedPageId, updateNotionPage } from "./notion-pages";
 import { getSyncedMessage, markMessageSynced, readConfig, updateLastSyncStatus, writeConfig } from "./storage";
 import { toErrorMessage } from "./common";
 
+// Sync a chat pair to Notion: create a new page or update an existing one.
 export async function syncPair(payload: ChatPairPayload, overwrite: boolean): Promise<RuntimeResponse> {
   const existingSync = await getSyncedMessage(payload.messageId);
 

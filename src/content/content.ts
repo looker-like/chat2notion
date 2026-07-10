@@ -1,44 +1,59 @@
+// Content script entry point — runs as an IIFE in the context of AI chat pages.
+// Responsibilities:
+//   1. Observe the page DOM for new/updated assistant messages.
+//   2. Inject Sync / Open in Notion / Auto-save control bars.
+//   3. Coordinate with the background worker for sync operations.
+//   4. Handle global and per-conversation auto-sync.
+
 import {
   ASSISTANT_PROCESSED_ATTRIBUTE,
-  AUTO_ICON,
-  AUTO_SYNC_STABILITY_MS,
-  AUTO_SYNCED_ATTRIBUTE,
   CONFIG_STORAGE_KEY,
   CONVERSATION_AUTO_SYNC_STORAGE_KEY,
   CONTROL_ATTRIBUTE,
-  MIN_AUTO_SYNC_ANSWER_LENGTH,
   OBSERVER_DEBOUNCE_MS,
 } from "./constants";
-import type { ChatPair, ControlNodes } from "./types";
-import { createConversationKey, readConversationAutoSyncState } from "./messages";
-import { buildChatPair, getAssistantMessages, isAnswerStillStreaming } from "./platform";
+import type { ChatPair } from "./types";
+import { createConversationKey } from "./messages";
+import { buildChatPair, getAssistantMessages } from "./platform";
 import { createRuntimeClient } from "./runtime";
-import { handleManualSync, initializeSyncedState, syncPair } from "./sync";
+import { handleManualSync, initializeSyncedState } from "./sync";
 import { createPageDiagnostics, isDiagnosticsRequest } from "./diagnostics";
 import {
   createControl,
   ensureStyles,
-  findExistingControl,
-  findInsertionTarget,
-  openNotionPage,
   readControl,
-  removeDuplicateControls,
   setControlState,
-  setControlStatus,
   syncOpenButton,
+  openNotionPage,
 } from "./controls";
+import { findExistingControl, findInsertionTarget, removeDuplicateControls } from "./dom-helpers";
+import { AutoSyncManager } from "./auto-sync";
 
 (() => {
+  // --- State ---
   let autoSyncEnabled = false;
-  let conversationAutoSyncEnabled = false;
   let conversationKey = createConversationKey();
   let scanTimer: number | null = null;
   let observer: MutationObserver | null = null;
   const autoSyncTimers = new Map<string, number>();
   const runtime = createRuntimeClient(handleExtensionContextInvalidated);
+  const autoSyncManager = createAutoSyncManager();
 
   void initialize();
 
+  function createAutoSyncManager(): AutoSyncManager {
+    return new AutoSyncManager({
+      conversationKey,
+      runtime,
+      autoSyncTimers,
+      scheduleScan,
+      syncAllButtons: syncAllConversationAutoButtons,
+    });
+  }
+
+  void initialize();
+
+  // --- Initialization ---
   async function initialize(): Promise<void> {
     ensureStyles();
     await refreshConfig();
@@ -46,6 +61,7 @@ import {
     scanPage();
     observeChat();
 
+    // Re-scan when the user changes config or conversation auto-sync from the popup.
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== "local" || !changes[CONFIG_STORAGE_KEY]) {
         return;
@@ -62,6 +78,7 @@ import {
       void refreshConversationAutoSync().then(() => scheduleScan(100));
     });
 
+    // Handle diagnostic requests from the popup "Check" button.
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (!isDiagnosticsRequest(message)) {
         return false;
@@ -72,6 +89,7 @@ import {
       return false;
     });
 
+    // Re-scan on SPA navigation (popstate) and as a safety net every second.
     window.addEventListener("popstate", () => {
       void handleLocationChanged();
     });
@@ -83,6 +101,8 @@ import {
     }, 1000);
   }
 
+  // --- Config refresh ---
+
   async function refreshConfig(): Promise<void> {
     const response = await runtime.sendMessage({ type: "chat2notion:getConfig" });
 
@@ -92,16 +112,21 @@ import {
   }
 
   async function refreshConversationAutoSync(): Promise<void> {
-    const stored = await runtime.safeStorageGet(CONVERSATION_AUTO_SYNC_STORAGE_KEY);
-    const state = readConversationAutoSyncState(stored[CONVERSATION_AUTO_SYNC_STORAGE_KEY]);
-    conversationAutoSyncEnabled = Boolean(state[conversationKey]);
+    const key = createConversationKey();
+    conversationKey = key;
+    autoSyncManager.setConversationKey(key);
   }
 
+  // --- Navigation handling ---
+
   async function handleLocationChanged(): Promise<void> {
-    conversationKey = createConversationKey();
-    await refreshConversationAutoSync();
+    const key = createConversationKey();
+    conversationKey = key;
+    autoSyncManager.setConversationKey(key);
     scheduleScan(100);
   }
+
+  // --- DOM observation ---
 
   function observeChat(): void {
     observer?.disconnect();
@@ -129,6 +154,8 @@ import {
     }, delay);
   }
 
+  // --- Page scanning ---
+
   function scanPage(): void {
     getAssistantMessages().forEach((assistant) => {
       const pair = buildChatPair(assistant);
@@ -139,11 +166,13 @@ import {
 
       ensureControl(pair);
 
-      if (autoSyncEnabled || conversationAutoSyncEnabled) {
-        scheduleAutoSync(pair);
+      if (autoSyncEnabled || autoSyncManager.isEnabled) {
+        autoSyncManager.schedule(pair);
       }
     });
   }
+
+  // --- Control injection ---
 
   function ensureControl(pair: ChatPair): void {
     pair.assistant.setAttribute(ASSISTANT_PROCESSED_ATTRIBUTE, "true");
@@ -167,112 +196,23 @@ import {
     };
     control.autoButton.onclick = () => {
       const latestPair = buildChatPair(pair.assistant) || pair;
-      void toggleConversationAutoSync(latestPair, control);
+      void autoSyncManager.toggle(latestPair, control);
     };
-    syncConversationAutoButton(control);
+    autoSyncManager.syncButton(control);
     syncOpenButton(control);
 
     void initializeSyncedState(pair.messageId, control, runtime);
   }
 
-  async function toggleConversationAutoSync(pair: ChatPair, control: ControlNodes): Promise<void> {
-    const nextEnabled = !conversationAutoSyncEnabled;
-    const saved = await setConversationAutoSync(nextEnabled);
-
-    if (!saved) {
-      setControlState(control, "error", "Extension was reloaded. Refresh this AI chat tab.");
-      return;
-    }
-
-    conversationAutoSyncEnabled = nextEnabled;
-    syncAllConversationAutoButtons();
-
-    if (!nextEnabled) {
-      setControlStatus(control, "Conversation auto-save off.");
-      return;
-    }
-
-    setControlStatus(control, "Conversation auto-save on. Future answers will sync.");
-
-    if (control.root.dataset.state !== "synced") {
-      await syncPair(pair, control, "auto", runtime);
-    }
-
-    scheduleScan(100);
-  }
-
-  async function setConversationAutoSync(enabled: boolean): Promise<boolean> {
-    const stored = await runtime.safeStorageGet(CONVERSATION_AUTO_SYNC_STORAGE_KEY);
-
-    if (!runtime.isValid()) {
-      return false;
-    }
-
-    const state = readConversationAutoSyncState(stored[CONVERSATION_AUTO_SYNC_STORAGE_KEY]);
-
-    if (enabled) {
-      state[conversationKey] = {
-        enabled: true,
-        sourceUrl: location.href,
-        updatedAt: new Date().toISOString(),
-      };
-    } else {
-      delete state[conversationKey];
-    }
-
-    return runtime.safeStorageSet({ [CONVERSATION_AUTO_SYNC_STORAGE_KEY]: state });
-  }
+  // --- Conversation auto-sync ---
 
   function syncAllConversationAutoButtons(): void {
     document.querySelectorAll<HTMLDivElement>(`[${CONTROL_ATTRIBUTE}]`).forEach((root) => {
-      syncConversationAutoButton(readControl(root));
+      autoSyncManager.syncButton(readControl(root));
     });
   }
 
-  function syncConversationAutoButton(control: ControlNodes): void {
-    control.autoButton.innerHTML = AUTO_ICON;
-    control.autoButton.dataset.enabled = conversationAutoSyncEnabled ? "true" : "false";
-    control.autoButton.title = conversationAutoSyncEnabled
-      ? "Disable automatic Notion sync for this AI conversation."
-      : "Enable automatic Notion sync for this AI conversation.";
-  }
-
-  function scheduleAutoSync(pair: ChatPair): void {
-    if (pair.assistant.getAttribute(AUTO_SYNCED_ATTRIBUTE) === pair.messageId) {
-      return;
-    }
-
-    if (pair.answer.length < MIN_AUTO_SYNC_ANSWER_LENGTH || isAnswerStillStreaming(pair.assistant)) {
-      scheduleScan(AUTO_SYNC_STABILITY_MS);
-      return;
-    }
-
-    const previousTimer = autoSyncTimers.get(pair.messageId);
-
-    if (previousTimer !== undefined) {
-      window.clearTimeout(previousTimer);
-    }
-
-    const timer = window.setTimeout(() => {
-      autoSyncTimers.delete(pair.messageId);
-      const latestPair = buildChatPair(pair.assistant);
-
-      if (!latestPair || latestPair.messageId !== pair.messageId || isAnswerStillStreaming(pair.assistant)) {
-        scheduleScan(AUTO_SYNC_STABILITY_MS);
-        return;
-      }
-
-      const controlRoot = findExistingControl(pair.assistant, findInsertionTarget(pair.assistant), pair.messageId);
-
-      if (!controlRoot) {
-        return;
-      }
-
-      void syncPair(latestPair, readControl(controlRoot), "auto", runtime);
-    }, AUTO_SYNC_STABILITY_MS);
-
-    autoSyncTimers.set(pair.messageId, timer);
-  }
+  // --- Extension reload handling ---
 
   function handleExtensionContextInvalidated(): void {
     if (!runtime.isValid()) {

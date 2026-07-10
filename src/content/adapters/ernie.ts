@@ -1,3 +1,4 @@
+// ERNIE adapter: matches Baidu ERNIE/Wenxin/Yiyan chat interfaces.
 import { PlatformAdapter } from "./types";
 
 export const ernieAdapter: PlatformAdapter = {

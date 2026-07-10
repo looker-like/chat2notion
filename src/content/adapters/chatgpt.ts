@@ -1,3 +1,5 @@
+// ChatGPT adapter: matches OpenAI's ChatGPT web interface.
+// Uses data-message-author-role attributes and .markdown content blocks.
 import { PlatformAdapter } from "./types";
 
 export const chatgptAdapter: PlatformAdapter = {

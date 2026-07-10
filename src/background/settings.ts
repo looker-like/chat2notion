@@ -1,8 +1,16 @@
+// Save user configuration and test Notion API connectivity.
+// Both operations persist config locally first, so a failed Notion setup
+// does not erase the user's API key or database ID.
+
 import type { Chat2NotionConfig, RuntimeResponse } from "../shared/config";
 import { ensureChat2NotionTarget, describeTargetSetup } from "./notion-target";
 import { normalizeNotionId, readConfig, writeConfig } from "./storage";
 import { toErrorMessage } from "./common";
 
+// Save the user-provided config (API key, database ID, auto-sync toggle).
+// If credentials are present, also ensure the Notion target exists and
+// update the stored dataSourceId. The save always succeeds locally;
+// Notion setup errors are reported in the response message.
 export async function saveUserConfig(
   input: Pick<Chat2NotionConfig, "apiKey" | "databaseId" | "autoSyncEnabled">,
 ): Promise<RuntimeResponse> {
@@ -46,6 +54,8 @@ export async function saveUserConfig(
   }
 }
 
+// Test the Notion API connection using the provided or currently stored credentials.
+// Saves the tested config locally first so a successful connection is remembered.
 export async function testConnection(input?: Pick<Chat2NotionConfig, "apiKey" | "databaseId">): Promise<RuntimeResponse> {
   const current = await readConfig();
   const apiKey = (input?.apiKey ?? current.apiKey).trim();
@@ -65,7 +75,7 @@ export async function testConnection(input?: Pick<Chat2NotionConfig, "apiKey" | 
   }
 
   if (!databaseId) {
-    return { ok: false, message: "Enter a Notion database ID first." };
+    return { ok: false, message: "Enter a database ID first." };
   }
 
   const dataSource = await ensureChat2NotionTarget(apiKey, databaseId);

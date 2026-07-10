@@ -1,3 +1,4 @@
+// You.com adapter: matches You.com search/chat interface.
 import { PlatformAdapter } from "./types";
 
 export const youAdapter: PlatformAdapter = {

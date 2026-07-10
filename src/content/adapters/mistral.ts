@@ -1,3 +1,4 @@
+// Mistral adapter: matches Mistral AI chat interface.
 import { PlatformAdapter } from "./types";
 
 export const mistralAdapter: PlatformAdapter = {

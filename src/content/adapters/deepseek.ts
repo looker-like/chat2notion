@@ -1,3 +1,5 @@
+// DeepSeek adapter: uses virtualized visible list for button injection
+// and merges multi-block reasoning/answer content.
 import { PlatformAdapter } from "./types";
 
 export const deepseekAdapter: PlatformAdapter = {

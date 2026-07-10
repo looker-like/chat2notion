@@ -1,3 +1,4 @@
+// Duck.ai adapter: matches DuckDuckGo AI chat interface.
 import { PlatformAdapter } from "./types";
 
 export const duckAdapter: PlatformAdapter = {

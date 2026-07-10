@@ -15,7 +15,7 @@ for (const scriptName of ["typecheck", "build", "lint"]) {
 
 function checkLineLimits() {
   const oversizedFiles = listCodeFiles()
-    .map((filePath) => ({ filePath, lines: countLines(filePath) }))
+    .map((filePath) => ({ filePath, lines: countCodeLines(filePath) }))
     .filter((file) => file.lines > MAX_LINES)
     .sort((left, right) => right.lines - left.lines);
 
@@ -50,9 +50,48 @@ function walk(directory) {
   });
 }
 
-function countLines(filePath) {
+// Count lines excluding comment-only lines (// and /* */ style comments).
+function countCodeLines(filePath) {
   const text = fs.readFileSync(filePath, "utf8");
-  return text.length === 0 ? 0 : text.split(/\r?\n/).length;
+  if (text.length === 0) return 0;
+
+  const lines = text.split(/\r?\n/);
+  let codeLines = 0;
+  let inBlockComment = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Skip empty lines
+    if (trimmed === "") continue;
+
+    // Handle block comment state
+    if (inBlockComment) {
+      if (trimmed.includes("*/")) {
+        inBlockComment = false;
+      }
+      continue;
+    }
+
+    // Check if line is entirely a comment
+    if (trimmed.startsWith("//")) continue;
+
+    // Check for block comment start
+    if (trimmed.startsWith("/*")) {
+      if (!trimmed.includes("*/")) {
+        inBlockComment = true;
+      }
+      continue;
+    }
+
+    // Check for inline block comment (entire line is a block comment)
+    if (trimmed.startsWith("*") && !trimmed.startsWith("**")) continue;
+
+    // Line contains code
+    codeLines++;
+  }
+
+  return codeLines;
 }
 
 function runNpmScript(scriptName) {

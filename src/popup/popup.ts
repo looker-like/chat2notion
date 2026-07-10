@@ -1,4 +1,12 @@
+// Extension popup and options page logic.
+// Runs as an IIFE in the popup context; communicates with the background
+// worker to read/write config, test connections, and run page diagnostics.
+
+import { sendMessage, getResponseMessage, toErrorMessage } from "./messenger";
+import { renderConfig } from "./renderer";
+
 (() => {
+  // --- DOM references ---
   const apiKeyInput = query<HTMLInputElement>("#apiKey");
   const databaseIdInput = query<HTMLInputElement>("#databaseId");
   const autoSyncInput = query<HTMLInputElement>("#autoSyncEnabled");
@@ -12,26 +20,7 @@
   const pageDiagnosticsNode = query<HTMLParagraphElement>("#pageDiagnostics");
   const connectionBadge = query<HTMLSpanElement>("#connectionBadge");
 
-  interface Chat2NotionConfig {
-    apiKey: string;
-    databaseId: string;
-    dataSourceId: string;
-    autoSyncEnabled: boolean;
-    lastSyncStatus: { tone: "idle" | "success" | "error" | "pending"; message: string; at: string } | null;
-  }
-
-  type RuntimeResponse =
-    { ok: true; config: Chat2NotionConfig } | { ok: true; message?: string } | { ok: false; message: string };
-
-  interface PageDiagnostics {
-    platformId: string;
-    aiName: string;
-    assistantCount: number;
-    pairCount: number;
-    controlCount: number;
-    ready: boolean;
-  }
-
+  // --- Bootstrap ---
   void initialize();
 
   async function initialize(): Promise<void> {
@@ -44,12 +33,14 @@
         throw new Error(getResponseMessage(response, "Could not load configuration."));
       }
 
-      renderConfig(response.config);
+      renderConfig(response.config, apiKeyInput, databaseIdInput, autoSyncInput, lastSyncNode, connectionBadge);
       setStatus("Configuration loaded.", "neutral");
     } catch (error) {
       setStatus(toErrorMessage(error), "error");
     }
   }
+
+  // --- Event binding ---
 
   function bindEvents(): void {
     toggleSecretButton.addEventListener("click", () => {
@@ -75,30 +66,7 @@
     });
   }
 
-  function renderConfig(config: Chat2NotionConfig): void {
-    apiKeyInput.value = config.apiKey;
-    databaseIdInput.value = config.databaseId;
-    autoSyncInput.checked = config.autoSyncEnabled;
-    renderLastSync(config);
-    renderBadge(config);
-  }
-
-  function renderLastSync(config: Chat2NotionConfig): void {
-    if (!config.lastSyncStatus) {
-      lastSyncNode.textContent = "No sync recorded yet.";
-      delete lastSyncNode.dataset.tone;
-      return;
-    }
-
-    lastSyncNode.textContent = `${config.lastSyncStatus.message} (${formatDate(config.lastSyncStatus.at)})`;
-    lastSyncNode.dataset.tone = config.lastSyncStatus.tone;
-  }
-
-  function renderBadge(config: Chat2NotionConfig): void {
-    const configured = Boolean(config.apiKey && config.databaseId && config.dataSourceId);
-    connectionBadge.textContent = configured ? "Ready" : "Not configured";
-    connectionBadge.dataset.tone = configured ? "success" : "idle";
-  }
+  // --- Actions ---
 
   async function saveConfig(): Promise<void> {
     setBusy(true);
@@ -178,17 +146,19 @@
     const response = await sendMessage({ type: "chat2notion:getConfig" });
 
     if (response.ok && "config" in response) {
-      renderConfig(response.config);
+      renderConfig(response.config, apiKeyInput, databaseIdInput, autoSyncInput, lastSyncNode, connectionBadge);
     }
   }
 
-  function collectConfigInput(): Pick<Chat2NotionConfig, "apiKey" | "databaseId" | "autoSyncEnabled"> {
+  function collectConfigInput(): { apiKey: string; databaseId: string; autoSyncEnabled: boolean } {
     return {
       apiKey: apiKeyInput.value,
       databaseId: databaseIdInput.value,
       autoSyncEnabled: autoSyncInput.checked,
     };
   }
+
+  // --- UI helpers ---
 
   function setBusy(isBusy: boolean): void {
     saveConfigButton.disabled = isBusy;
@@ -206,29 +176,14 @@
     statusNode.dataset.tone = tone;
   }
 
-  async function sendMessage(message: object): Promise<RuntimeResponse> {
-    return chrome.runtime.sendMessage(message) as Promise<RuntimeResponse>;
-  }
+  // --- Local helpers ---
 
-  function getResponseMessage(response: RuntimeResponse, fallback: string): string {
-    return "message" in response && typeof response.message === "string" ? response.message : fallback;
-  }
-
-  function formatDate(value: string): string {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
-  }
-
-  function toErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : "Unexpected popup error.";
-  }
-
-  function readDiagnostics(response: unknown): PageDiagnostics {
+  function readDiagnostics(response: unknown): { aiName: string; controlCount: number; pairCount: number; assistantCount: number; ready: boolean } {
     if (!response || typeof response !== "object") {
       throw new Error("No diagnostics response from the current tab.");
     }
 
-    const diagnostics = (response as { diagnostics?: PageDiagnostics }).diagnostics;
+    const diagnostics = (response as { diagnostics?: { aiName: string; controlCount: number; pairCount: number; assistantCount: number; ready: boolean } }).diagnostics;
 
     if (!diagnostics) {
       throw new Error("Current tab did not return Chat2Notion diagnostics.");

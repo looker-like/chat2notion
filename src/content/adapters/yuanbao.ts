@@ -1,3 +1,4 @@
+// Yuanbao adapter: matches Tencent Yuanbao chat interface.
 import { PlatformAdapter } from "./types";
 
 export const yuanbaoAdapter: PlatformAdapter = {

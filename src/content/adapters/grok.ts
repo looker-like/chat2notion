@@ -1,3 +1,4 @@
+// Grok adapter: matches Grok/X.com using standard assistant/user data attributes.
 import { PlatformAdapter } from "./types";
 
 export const grokAdapter: PlatformAdapter = {

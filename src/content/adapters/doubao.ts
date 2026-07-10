@@ -1,3 +1,5 @@
+// Doubao adapter: uses data-testid='union_message' rows with nested
+// receive_message/send_message structure for message detection.
 import { PlatformAdapter } from "./types";
 
 export const doubaoAdapter: PlatformAdapter = {

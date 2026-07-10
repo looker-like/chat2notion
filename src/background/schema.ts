@@ -1,3 +1,7 @@
+// Notion database schema creation and property validation.
+// Ensures the target database has all 8 required properties with correct types,
+// and keeps the AI select options in sync with supported platforms.
+
 import { isRecord } from "../shared/config";
 import { extractString } from "./common";
 import {
@@ -7,6 +11,8 @@ import {
   REQUIRED_PROPERTIES,
 } from "./types";
 
+// All AI platform names that can appear in the Notion AI select field.
+// Colors match the branding used by each platform in the UI.
 const SUPPORTED_AI_OPTIONS = [
   { name: "ChatGPT", color: "blue" },
   { name: "Gemini", color: "purple" },
@@ -30,6 +36,8 @@ const SUPPORTED_AI_OPTIONS = [
   { name: "AI", color: "gray" },
 ] as const;
 
+// Extract the data source ID from a Notion database response.
+// Notion returns data sources either directly or nested in a results array.
 export function extractDataSourceId(database: unknown): string {
   if (!isRecord(database)) {
     return "";
@@ -54,6 +62,8 @@ export function extractDataSourceId(database: unknown): string {
   return firstResult ? extractString(firstResult, "id") : "";
 }
 
+// Extract property names and types from a Notion data source response.
+// Also collects select option names for select-type properties.
 export function extractProperties(value: unknown): Record<string, { type?: string; selectOptions?: string[] }> {
   if (!isRecord(value) || !isRecord(value.properties)) {
     return {};
@@ -78,6 +88,7 @@ export function extractProperties(value: unknown): Record<string, { type?: strin
   return properties;
 }
 
+// Validate that all required properties exist with the expected types.
 export function validateRequiredProperties(properties: Record<string, { type?: string }>): void {
   const issues = getRequiredPropertyIssues(properties);
   const errors = [
@@ -90,6 +101,7 @@ export function validateRequiredProperties(properties: Record<string, { type?: s
   }
 }
 
+// Split required properties into missing and incompatible categories.
 export function getRequiredPropertyIssues(properties: Record<string, { type?: string }>): {
   missing: string[];
   incompatible: string[];
@@ -115,6 +127,7 @@ export function getRequiredPropertyIssues(properties: Record<string, { type?: st
   return { missing, incompatible };
 }
 
+// Build a PATCH body that adds only the missing required properties.
 export function createMissingPropertiesPatch(properties: Record<string, { type?: string }>): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
 
@@ -127,6 +140,7 @@ export function createMissingPropertiesPatch(properties: Record<string, { type?:
   return patch;
 }
 
+// Build the full schema for all 8 required properties (used when creating a new database).
 export function createRequiredPropertiesSchema(): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
 
@@ -137,6 +151,9 @@ export function createRequiredPropertiesSchema(): Record<string, unknown> {
   return properties;
 }
 
+// Build the schema definition for a single required property.
+// The AI property gets a select with all supported platform options;
+// Sync Mode gets manual/auto options; others get empty property shells.
 export function createRequiredPropertySchema(name: RequiredPropertyName): Record<string, unknown> {
   const type = REQUIRED_PROPERTIES[name];
 
@@ -163,6 +180,7 @@ export function createRequiredPropertySchema(name: RequiredPropertyName): Record
   }
 }
 
+// Find which supported AI platform options are missing from the AI select property.
 export function getMissingAiSelectOptions(properties: Record<string, { type?: string; selectOptions?: string[] }>): string[] {
   const aiProperty = properties.AI;
 
@@ -174,6 +192,7 @@ export function getMissingAiSelectOptions(properties: Record<string, { type?: st
   return SUPPORTED_AI_OPTIONS.map((option) => option.name).filter((name) => !existingOptions.has(name));
 }
 
+// Build the AI select property schema, merging known options with any existing user-defined ones.
 export function createAiSelectPropertySchema(existingOptionNames: string[] = []): Record<string, unknown> {
   const knownOptions = new Map<string, { name: string; color: string }>(
     SUPPORTED_AI_OPTIONS.map((option) => [option.name, { ...option }]),
@@ -188,6 +207,7 @@ export function createAiSelectPropertySchema(existingOptionNames: string[] = [])
   return { select: { options: Array.from(knownOptions.values()).map((option) => ({ ...option })) } };
 }
 
+// Human-readable description of what happened during target setup.
 export function describeTargetSetup(target: NotionDataSourceInfo): string {
   if (target.createdDatabase) {
     return "Created a Chat2Notion database in the provided empty page.";

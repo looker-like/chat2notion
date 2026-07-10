@@ -1,3 +1,4 @@
+// Meta AI adapter: matches Meta.ai's chat interface.
 import { PlatformAdapter } from "./types";
 
 export const metaAdapter: PlatformAdapter = {

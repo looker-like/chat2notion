@@ -1,3 +1,9 @@
+// Notion target resolution: ensure the user's database/data source exists and is ready.
+// Handles three cases:
+//   1. User provided an existing database ID -> verify and initialize missing properties.
+//   2. User provided an empty page ID -> create a new Chat2Notion database inside it.
+//   3. User provided an inaccessible ID -> throw a descriptive error.
+
 import { isRecord } from "../shared/config";
 import type { NotionDataSourceInfo } from "./types";
 import { extractString, isNotionApiError, toErrorMessage } from "./common";
@@ -18,6 +24,7 @@ import { toNotionText } from "./page-properties";
 const DEFAULT_DATABASE_TITLE = "Chat2Notion";
 const DEFAULT_DATA_SOURCE_TITLE = "Synced Chats";
 
+// Entry point: try treating the ID as a database, fall back to treating it as an empty page.
 export async function ensureChat2NotionTarget(apiKey: string, databaseId: string): Promise<NotionDataSourceInfo> {
   try {
     return await ensureDatabaseTarget(apiKey, databaseId);
@@ -41,6 +48,7 @@ export async function ensureChat2NotionTarget(apiKey: string, databaseId: string
   }
 }
 
+// Verify an existing database ID is accessible and its data source is initialized.
 export async function ensureDatabaseTarget(apiKey: string, databaseId: string): Promise<NotionDataSourceInfo> {
   const database = await notionFetch<unknown>(apiKey, `/databases/${encodeURIComponent(databaseId)}`, {
     method: "GET",
@@ -51,6 +59,7 @@ export async function ensureDatabaseTarget(apiKey: string, databaseId: string): 
   return initializeDataSourceProperties(apiKey, dataSource);
 }
 
+// Create a new Chat2Notion database inside an empty Notion page.
 export async function createDatabaseInEmptyPage(apiKey: string, pageId: string): Promise<NotionDataSourceInfo> {
   await notionFetch<unknown>(apiKey, `/pages/${encodeURIComponent(pageId)}`, { method: "GET" });
 
@@ -92,6 +101,8 @@ export async function createDatabaseInEmptyPage(apiKey: string, pageId: string):
   return { ...dataSource, createdDatabase: true };
 }
 
+// Fetch a data source by ID, falling back to the database's properties if the
+// data source endpoint is not available (older Notion accounts).
 export async function retrieveDataSource(
   apiKey: string,
   dataSourceId: string,
@@ -118,6 +129,7 @@ export async function retrieveDataSource(
   }
 }
 
+// Patch missing required properties and AI select options onto the data source.
 export async function initializeDataSourceProperties(
   apiKey: string,
   dataSource: NotionDataSourceInfo,
@@ -157,6 +169,7 @@ export async function initializeDataSourceProperties(
   return updatedDataSource;
 }
 
+// Check whether a Notion page has any child blocks (i.e., is not empty).
 export async function isPageEmpty(apiKey: string, pageId: string): Promise<boolean> {
   const children = await notionFetch<unknown>(apiKey, `/blocks/${encodeURIComponent(pageId)}/children?page_size=1`, {
     method: "GET",

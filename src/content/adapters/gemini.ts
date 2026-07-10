@@ -1,3 +1,4 @@
+// Gemini adapter: matches Google Gemini/Bard using model-response and user-query custom elements.
 import { PlatformAdapter } from "./types";
 
 export const geminiAdapter: PlatformAdapter = {

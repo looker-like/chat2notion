@@ -1,3 +1,4 @@
+// ChatGLM adapter: matches Zhipu ChatGLM and z.ai interfaces.
 import { PlatformAdapter } from "./types";
 
 export const chatglmAdapter: PlatformAdapter = {

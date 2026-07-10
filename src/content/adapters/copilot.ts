@@ -1,3 +1,5 @@
+// Copilot adapter: matches Microsoft Copilot/Bing with ac-container and ai-message-body selectors.
+// Supports Shadow DOM traversal for nested Copilot components.
 import { PlatformAdapter } from "./types";
 
 export const copilotAdapter: PlatformAdapter = {

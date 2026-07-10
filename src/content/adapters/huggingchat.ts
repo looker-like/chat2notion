@@ -1,3 +1,4 @@
+// HuggingChat adapter: matches HuggingFace chat interface.
 import { PlatformAdapter } from "./types";
 
 export const huggingchatAdapter: PlatformAdapter = {

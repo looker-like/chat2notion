@@ -1,3 +1,8 @@
+﻿// HTML-to-Markdown conversion for AI chat content.
+// Handles the common rich elements found in AI responses: headings, links,
+// bold/italic/strikethrough, inline code, code blocks, lists, tables,
+// blockquotes, images, and horizontal rules.
+
 export function normalizeMarkdown(value: string): string {
   return value
     .replace(/\u00a0/g, " ")
@@ -6,6 +11,7 @@ export function normalizeMarkdown(value: string): string {
     .trim();
 }
 
+// Recursively convert a DOM node to its Markdown representation.
 export function elementToMarkdown(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
     return node.textContent ?? "";
@@ -62,20 +68,24 @@ export function elementToMarkdown(node: Node): string {
   }
 }
 
+// Convert all child nodes of a DOM node to Markdown and join the results.
 export function childrenToMarkdown(node: Node): string {
   return Array.from(node.childNodes).map(elementToMarkdown).join("");
 }
 
+// Wrap a Markdown value with blank lines to treat it as a block element.
 export function blockMarkdown(value: string): string {
   const normalized = normalizeMarkdown(value);
   return normalized ? `\n\n${normalized}\n\n` : "";
 }
 
+// Convert a heading element to a Markdown heading line.
 export function headingToMarkdown(node: HTMLElement, level: number): string {
   const text = normalizeMarkdown(childrenToMarkdown(node));
   return text ? `\n\n${"#".repeat(level)} ${text}\n\n` : "";
 }
 
+// Convert an anchor element to a Markdown link.
 export function anchorToMarkdown(node: HTMLElement): string {
   const href = node.getAttribute("href") ?? "";
   const text =
@@ -91,6 +101,7 @@ export function anchorToMarkdown(node: HTMLElement): string {
   return `[${escapeMarkdownLinkText(text)}](${escapeMarkdownUrl(url)})`;
 }
 
+// Normalize a URL href: resolve relative URLs, skip anchors and javascript: URLs.
 export function normalizeHref(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.startsWith("#") || /^javascript:/i.test(trimmed)) {
@@ -104,11 +115,13 @@ export function normalizeHref(value: string): string {
   }
 }
 
+// Wrap inline content with a Markdown marker (e.g., ** for bold).
 export function wrapInlineMarkdown(node: HTMLElement, marker: string): string {
   const text = childrenToMarkdown(node);
   return text ? `${marker}${text}${marker}` : "";
 }
 
+// Convert inline code to Markdown, choosing backtick count based on content.
 export function inlineCodeToMarkdown(value: string): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (!normalized) {
@@ -119,6 +132,7 @@ export function inlineCodeToMarkdown(value: string): string {
   return `${marker}${normalized}${marker}`;
 }
 
+// Recursively extract text from a code block node, preserving line breaks from block elements.
 function extractCodeText(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
     return node.textContent ?? "";
@@ -126,36 +140,38 @@ function extractCodeText(node: Node): string {
   if (!(node instanceof HTMLElement)) {
     return Array.from(node.childNodes).map(extractCodeText).join("");
   }
-  
+
   const tagName = node.tagName.toLowerCase();
   const isBlock = ["div", "p", "li", "tr"].includes(tagName);
   const isBr = tagName === "br";
-  
+
   const text = Array.from(node.childNodes).map(extractCodeText).join("");
-  
+
   if (isBr) return "\n";
   if (isBlock) return `${text}\n`;
   return text;
 }
 
+// Convert a <pre> code block to a fenced Markdown code block.
 export function codeBlockToMarkdown(node: HTMLElement): string {
   const code = node.querySelector("code");
-  
+
   // Extract language from class names like language-xxx or lang-xxx on either <code> or <pre>
   const classList = [...Array.from(code?.classList ?? []), ...Array.from(node.classList)];
   const languageClass = classList.find(c => c.startsWith("language-") || c.startsWith("lang-"));
   const language = languageClass?.replace(/^(language|lang)-/, "") ?? "";
-  
+
   const targetElement = code ?? node;
   const rawText = extractCodeText(targetElement);
-  
+
   // Replace multiple newlines caused by block element stacking, but keep intentional newlines.
   // Actually, standardizing on a single newline for block element boundaries is safe here.
   const text = rawText.replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "");
-  
+
   return `\n\n\`\`\`${language}\n${text}\n\`\`\`\n\n`;
 }
 
+// Convert a blockquote element to Markdown blockquote lines.
 export function blockquoteToMarkdown(node: HTMLElement): string {
   const text = normalizeMarkdown(childrenToMarkdown(node));
   if (!text) {
@@ -168,6 +184,7 @@ export function blockquoteToMarkdown(node: HTMLElement): string {
     .join("\n")}\n\n`;
 }
 
+// Convert a list element to Markdown bullet or numbered list.
 export function listToMarkdown(node: HTMLElement, ordered: boolean): string {
   const items = Array.from(node.children).filter(
     (child): child is HTMLElement => child instanceof HTMLElement && child.tagName.toLowerCase() === "li",
@@ -183,6 +200,7 @@ export function listToMarkdown(node: HTMLElement, ordered: boolean): string {
   return lines.length > 0 ? `\n\n${lines.join("\n")}\n\n` : "";
 }
 
+// Convert an HTML table to a Markdown table.
 export function tableToMarkdown(node: HTMLElement): string {
   const rows = Array.from(node.querySelectorAll("tr")).map((row) =>
     Array.from(row.querySelectorAll("th, td")).map((cell) =>
@@ -202,16 +220,19 @@ export function tableToMarkdown(node: HTMLElement): string {
   return `\n\n${markdownRows.join("\n")}\n\n`;
 }
 
+// Convert an image element to a Markdown image link.
 export function imageToMarkdown(node: HTMLElement): string {
   const src = normalizeHref(node.getAttribute("src") ?? "");
   const alt = node.getAttribute("alt") ?? "";
   return src ? `![${escapeMarkdownLinkText(alt)}](${escapeMarkdownUrl(src)})` : alt;
 }
 
+// Escape backslashes and closing brackets in Markdown link text.
 export function escapeMarkdownLinkText(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/\]/g, "\\]");
 }
 
+// Escape closing parentheses in Markdown URLs.
 export function escapeMarkdownUrl(value: string): string {
   return value.replace(/\)/g, "%29");
 }

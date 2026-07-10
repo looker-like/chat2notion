@@ -1,12 +1,34 @@
+// CSS class names, DOM attribute names, timing constants, and SVG icons
+// used by the content script's injected controls.
+
+// CSS class for the injected control bar container.
 export const CONTROL_CLASS = "c2n-control";
+
+// data attribute used to mark control bars and find existing controls in the DOM.
 export const CONTROL_ATTRIBUTE = "data-chat2notion-control";
+
+// Set on an assistant node after its control bar has been injected.
 export const ASSISTANT_PROCESSED_ATTRIBUTE = "data-chat2notion-processed";
+
+// Set on an assistant node after it has been auto-synced (prevents duplicate auto-syncs).
 export const AUTO_SYNCED_ATTRIBUTE = "data-chat2notion-auto-synced";
+
+// chrome.storage.local key for the extension configuration.
 export const CONFIG_STORAGE_KEY = "chat2notionConfig";
+
+// chrome.storage.local key for per-conversation auto-sync state.
 export const CONVERSATION_AUTO_SYNC_STORAGE_KEY = "chat2notionConversationAutoSync";
+
+// Debounce delay (ms) for the MutationObserver scan after DOM mutations.
 export const OBSERVER_DEBOUNCE_MS = 200;
+
+// Minimum time (ms) after the last DOM change before an answer is considered stable for auto-sync.
 export const AUTO_SYNC_STABILITY_MS = 2200;
+
+// Minimum answer length (characters) to trigger auto-sync; filters out very short responses.
 export const MIN_AUTO_SYNC_ANSWER_LENGTH = 2;
+
+// Inline SVG icons for the three control buttons.
 export const SYNC_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
 export const SYNCED_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 export const OPEN_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;

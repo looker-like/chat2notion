@@ -1,3 +1,4 @@
+// Perplexity adapter: matches Perplexity.ai answer/query structure with prose content.
 import { PlatformAdapter } from "./types";
 
 export const perplexityAdapter: PlatformAdapter = {

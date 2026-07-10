@@ -1,3 +1,4 @@
+// Poe adapter: matches Poe.com's bot/human message classes.
 import { PlatformAdapter } from "./types";
 
 export const poeAdapter: PlatformAdapter = {

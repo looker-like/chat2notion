@@ -1,3 +1,4 @@
+// Kimi adapter: matches Moonshot Kimi with multilingual content selectors.
 import { PlatformAdapter } from "./types";
 
 export const kimiAdapter: PlatformAdapter = {

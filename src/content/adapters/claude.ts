@@ -1,3 +1,4 @@
+// Claude adapter: matches Claude.ai's message structure with font-claude-message classes.
 import { PlatformAdapter } from "./types";
 
 export const claudeAdapter: PlatformAdapter = {

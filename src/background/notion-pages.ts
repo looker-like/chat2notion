@@ -1,3 +1,6 @@
+// Notion page lifecycle: create, update, and resolve pages for a chat pair sync.
+// Also handles appending/replacing the Markdown backup in the page body.
+
 import { isRecord, type ChatPairPayload } from "../shared/config";
 import type { NotionPageResponse } from "./types";
 import { extractString, isNotionApiError } from "./common";
@@ -10,6 +13,7 @@ import {
 } from "./page-properties";
 import { assertNotionRequestFits } from "./request-size";
 
+// Create a new Notion page for the given chat pair.
 export async function createNotionPage(
   apiKey: string,
   dataSourceId: string,
@@ -32,6 +36,7 @@ export async function createNotionPage(
   return page;
 }
 
+// Update an existing Notion page with new chat pair data.
 export async function updateNotionPage(apiKey: string, pageId: string, payload: ChatPairPayload): Promise<NotionPageResponse> {
   const bodyJson = createPagePropertiesBodyJson(payload);
 
@@ -46,6 +51,9 @@ export async function updateNotionPage(apiKey: string, pageId: string, payload: 
   return { ...page, id: page.id ?? pageId };
 }
 
+// Resolve the actual Notion page ID for a resync operation.
+// Prefers the stored page ID if the page is still accessible;
+// otherwise queries the data source by Message ID to find a replacement.
 export async function resolveSyncedPageId(
   apiKey: string,
   dataSourceId: string,
@@ -59,6 +67,7 @@ export async function resolveSyncedPageId(
   return findSyncedPageIdByMessageId(apiKey, dataSourceId, messageId);
 }
 
+// Check whether a specific Notion page ID is still accessible to the API key.
 export async function canAccessPage(apiKey: string, pageId: string): Promise<boolean> {
   try {
     await notionFetch<unknown>(apiKey, `/pages/${encodeURIComponent(pageId)}`, { method: "GET" });
@@ -72,6 +81,7 @@ export async function canAccessPage(apiKey: string, pageId: string): Promise<boo
   }
 }
 
+// Query the data source for a page with the given Message ID property.
 export async function findSyncedPageIdByMessageId(apiKey: string, dataSourceId: string, messageId: string): Promise<string> {
   const response = await notionFetch<unknown>(apiKey, `/data_sources/${encodeURIComponent(dataSourceId)}/query`, {
     method: "POST",
@@ -94,6 +104,7 @@ export async function findSyncedPageIdByMessageId(apiKey: string, dataSourceId: 
   return firstPage ? extractString(firstPage, "id") : "";
 }
 
+// Append Markdown content chunks to a Notion page body.
 export async function appendPageMarkdownBackup(apiKey: string, pageId: string, markdown: string): Promise<void> {
   const chunks = splitMarkdownForNotion(markdown);
 
@@ -114,6 +125,7 @@ export async function appendPageMarkdownBackup(apiKey: string, pageId: string, m
   }
 }
 
+// Replace the Markdown backup of an existing Notion page, then append remaining chunks.
 export async function replacePageMarkdownBackup(apiKey: string, pageId: string, markdown: string): Promise<void> {
   const [firstChunk = "No content captured.", ...remainingChunks] = splitMarkdownForNotion(markdown);
   const bodyJson = JSON.stringify({
@@ -147,6 +159,7 @@ export async function replacePageMarkdownBackup(apiKey: string, pageId: string, 
   }
 }
 
+// Validate that a sync payload has the required non-empty fields before sending to Notion.
 export function assertSyncPayload(payload: ChatPairPayload): void {
   if (!payload.messageId.trim()) {
     throw new Error("Cannot sync without a message ID.");

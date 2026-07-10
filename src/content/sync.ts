@@ -1,8 +1,13 @@
+// Content-side sync orchestration.
+// Handles the manual sync button click flow and initializing the synced state
+// of control bars when the page loads.
+
 import { AUTO_SYNCED_ATTRIBUTE } from "./constants";
 import { setControlState, setNotionPageId } from "./controls";
 import { getResponseMessage, type RuntimeClient } from "./runtime";
 import type { ChatPair, ControlNodes, SyncMode } from "./types";
 
+// Check whether a message is already synced and update the control bar accordingly.
 export async function initializeSyncedState(
   messageId: string,
   control: ControlNodes,
@@ -16,6 +21,8 @@ export async function initializeSyncedState(
   }
 }
 
+// Handle a manual sync button click.
+// If already synced, asks for confirmation before overwriting.
 export async function handleManualSync(
   pair: ChatPair,
   control: ControlNodes,
@@ -35,6 +42,7 @@ export async function handleManualSync(
   await syncPair(pair, control, "manual", runtime);
 }
 
+// Send a sync request to the background worker and update the control bar with the result.
 export async function syncPair(
   pair: ChatPair,
   control: ControlNodes,

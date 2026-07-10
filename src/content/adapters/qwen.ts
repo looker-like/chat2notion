@@ -1,3 +1,4 @@
+// Qwen adapter: matches Alibaba Qwen/Tongyi chat interfaces.
 import { PlatformAdapter } from "./types";
 
 export const qwenAdapter: PlatformAdapter = {

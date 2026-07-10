@@ -1,3 +1,6 @@
+// Inject and manage the Sync / Open in Notion / Auto-save control bar
+// for each detected AI assistant message.
+
 import {
   AUTO_ICON,
   CONTROL_ATTRIBUTE,
@@ -6,198 +9,168 @@ import {
   SYNC_ICON,
   SYNCED_ICON,
 } from "./constants";
-import { getCurrentAdapter } from "./platform";
 import type { ChatPair, ControlNodes } from "./types";
 
+// Create a new control bar DOM structure for an assistant message.
 export function createControl(pair: ChatPair): ControlNodes {
-    const root = document.createElement("div");
-    root.className = CONTROL_CLASS;
-    root.setAttribute(CONTROL_ATTRIBUTE, "true");
-    root.dataset.messageId = pair.messageId;
+  const root = document.createElement("div");
+  root.className = CONTROL_CLASS;
+  root.setAttribute(CONTROL_ATTRIBUTE, "true");
+  root.dataset.messageId = pair.messageId;
 
-    const button = document.createElement("button");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.role = "sync";
+  button.title = "Sync to Notion";
+  button.innerHTML = SYNC_ICON;
+
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.dataset.role = "notion-open";
+  openButton.title = "Open in Notion";
+  openButton.innerHTML = OPEN_ICON;
+  openButton.hidden = true;
+
+  const autoButton = document.createElement("button");
+  autoButton.type = "button";
+  autoButton.dataset.role = "conversation-auto-sync";
+  autoButton.title = "Auto-save chat";
+  autoButton.innerHTML = AUTO_ICON;
+
+  const status = document.createElement("span");
+  status.textContent = "";
+
+  root.append(button, openButton, autoButton, status);
+  return { root, button, openButton, autoButton, status };
+}
+
+// Read existing control nodes from a control bar root element.
+// If any expected child is missing, creates a replacement element.
+export function readControl(root: HTMLDivElement): ControlNodes {
+  const button =
+    root.querySelector<HTMLButtonElement>("button[data-role='sync']") ??
+    Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find((node) => {
+      const role = node.dataset.role;
+      return role !== "conversation-auto-sync" && role !== "notion-open";
+    }) ??
+    document.createElement("button");
+  const openButton =
+    root.querySelector<HTMLButtonElement>("button[data-role='notion-open']") ?? document.createElement("button");
+  const autoButton =
+    root.querySelector<HTMLButtonElement>("button[data-role='conversation-auto-sync']") ??
+    document.createElement("button");
+  const status = root.querySelector<HTMLSpanElement>("span") ?? document.createElement("span");
+
+  if (!button.parentElement) {
     button.type = "button";
-    button.dataset.role = "sync";
-    button.title = "Sync to Notion";
-    button.innerHTML = SYNC_ICON;
+    root.append(button);
+  }
 
-    const openButton = document.createElement("button");
+  button.dataset.role = "sync";
+  if (!button.innerHTML) {
+    button.innerHTML = SYNC_ICON;
+  }
+
+  if (!openButton.parentElement) {
     openButton.type = "button";
     openButton.dataset.role = "notion-open";
-    openButton.title = "Open in Notion";
     openButton.innerHTML = OPEN_ICON;
+    openButton.title = "Open in Notion";
     openButton.hidden = true;
+    root.insertBefore(openButton, autoButton.parentElement ? autoButton : status.parentElement ? status : null);
+  }
 
-    const autoButton = document.createElement("button");
+  if (!autoButton.parentElement) {
     autoButton.type = "button";
     autoButton.dataset.role = "conversation-auto-sync";
-    autoButton.title = "Auto-save chat";
     autoButton.innerHTML = AUTO_ICON;
-
-    const status = document.createElement("span");
-    status.textContent = "";
-
-    root.append(button, openButton, autoButton, status);
-    return { root, button, openButton, autoButton, status };
+    root.append(autoButton);
   }
 
-export function readControl(root: HTMLDivElement): ControlNodes {
-    const button =
-      root.querySelector<HTMLButtonElement>("button[data-role='sync']") ??
-      Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find((node) => {
-        const role = node.dataset.role;
-        return role !== "conversation-auto-sync" && role !== "notion-open";
-      }) ??
-      document.createElement("button");
-    const openButton =
-      root.querySelector<HTMLButtonElement>("button[data-role='notion-open']") ?? document.createElement("button");
-    const autoButton =
-      root.querySelector<HTMLButtonElement>("button[data-role='conversation-auto-sync']") ??
-      document.createElement("button");
-    const status = root.querySelector<HTMLSpanElement>("span") ?? document.createElement("span");
-
-    if (!button.parentElement) {
-      button.type = "button";
-      root.append(button);
-    }
-
-    button.dataset.role = "sync";
-    if (!button.innerHTML) {
-      button.innerHTML = SYNC_ICON;
-    }
-
-    if (!openButton.parentElement) {
-      openButton.type = "button";
-      openButton.dataset.role = "notion-open";
-      openButton.innerHTML = OPEN_ICON;
-      openButton.title = "Open in Notion";
-      openButton.hidden = true;
-      root.insertBefore(openButton, autoButton.parentElement ? autoButton : status.parentElement ? status : null);
-    }
-
-    if (!autoButton.parentElement) {
-      autoButton.type = "button";
-      autoButton.dataset.role = "conversation-auto-sync";
-      autoButton.innerHTML = AUTO_ICON;
-      root.append(autoButton);
-    }
-
-    if (!status.parentElement) {
-      root.append(status);
-    }
-
-    return { root, button, openButton, autoButton, status };
+  if (!status.parentElement) {
+    root.append(status);
   }
 
-export function findInsertionTarget(assistant: HTMLElement): HTMLElement {
-    if (getCurrentAdapter().id === "doubao") {
-      return (
-        assistant.closest<HTMLElement>("[data-testid='union_message']") ??
-        assistant.closest<HTMLElement>("[data-testid='receive_message']") ??
-        assistant
-      );
-    }
+  return { root, button, openButton, autoButton, status };
+}
 
-    const article = assistant.closest<HTMLElement>("article");
-    return article ?? assistant;
-  }
-
-export function findExistingControl(
-    assistant: HTMLElement,
-    insertionTarget: HTMLElement,
-    messageId: string,
-  ): HTMLDivElement | null {
-    const assistantControl = assistant.querySelector<HTMLDivElement>(`[${CONTROL_ATTRIBUTE}]`);
-
-    if (assistantControl) {
-      return assistantControl;
-    }
-
-    const directControls = Array.from(insertionTarget.children).filter((node): node is HTMLDivElement => {
-      return node instanceof HTMLDivElement && node.hasAttribute(CONTROL_ATTRIBUTE);
-    });
-
-    return directControls.find((node) => node.dataset.messageId === messageId) ?? directControls[0] ?? null;
-  }
-
-export function removeDuplicateControls(insertionTarget: HTMLElement, keep: HTMLDivElement): void {
-    Array.from(insertionTarget.children).forEach((node) => {
-      if (node instanceof HTMLDivElement && node !== keep && node.hasAttribute(CONTROL_ATTRIBUTE)) {
-        node.remove();
-      }
-    });
-  }
-
+// Update the control bar's visual state (idle, pending, synced, error).
 export function setControlState(
-    control: ControlNodes,
-    state: "idle" | "pending" | "synced" | "error",
-    message: string,
-  ): void {
-    control.root.dataset.state = state;
-    control.status.textContent = message;
-    control.button.disabled = state === "pending";
-    if (state === "pending") {
-      control.button.classList.add("c2n-pending");
-      control.button.innerHTML = SYNC_ICON;
-      control.button.title = "Syncing...";
-    } else if (state === "synced") {
-      control.button.classList.remove("c2n-pending");
-      control.button.innerHTML = SYNCED_ICON;
-      control.button.title = "Synced. Click to resync and overwrite the existing Notion page.";
-    } else {
-      control.button.classList.remove("c2n-pending");
-      control.button.innerHTML = SYNC_ICON;
-      control.button.title = "Sync to Notion";
-    }
-    control.autoButton.disabled = state === "pending";
-    syncOpenButton(control);
+  control: ControlNodes,
+  state: "idle" | "pending" | "synced" | "error",
+  message: string,
+): void {
+  control.root.dataset.state = state;
+  control.status.textContent = message;
+  control.button.disabled = state === "pending";
+  if (state === "pending") {
+    control.button.classList.add("c2n-pending");
+    control.button.innerHTML = SYNC_ICON;
+    control.button.title = "Syncing...";
+  } else if (state === "synced") {
+    control.button.classList.remove("c2n-pending");
+    control.button.innerHTML = SYNCED_ICON;
+    control.button.title = "Synced. Click to resync and overwrite the existing Notion page.";
+  } else {
+    control.button.classList.remove("c2n-pending");
+    control.button.innerHTML = SYNC_ICON;
+    control.button.title = "Sync to Notion";
   }
+  control.autoButton.disabled = state === "pending";
+  syncOpenButton(control);
+}
 
+// Update only the status text on the control bar.
 export function setControlStatus(control: ControlNodes, message: string): void {
-    control.status.textContent = message;
-  }
+  control.status.textContent = message;
+}
 
+// Store the Notion page ID on the control bar and update the Open button visibility.
 export function setNotionPageId(control: ControlNodes, notionPageId: string): void {
-    if (notionPageId) {
-      control.root.dataset.notionPageId = notionPageId;
-    } else {
-      delete control.root.dataset.notionPageId;
-    }
-
-    syncOpenButton(control);
+  if (notionPageId) {
+    control.root.dataset.notionPageId = notionPageId;
+  } else {
+    delete control.root.dataset.notionPageId;
   }
 
+  syncOpenButton(control);
+}
+
+// Show/hide and enable/disable the Open in Notion button based on state.
 export function syncOpenButton(control: ControlNodes): void {
-    const notionPageId = control.root.dataset.notionPageId ?? "";
-    const hasPage = Boolean(notionPageId);
-    control.openButton.hidden = !hasPage;
-    control.openButton.disabled = !hasPage || control.root.dataset.state === "pending";
-    control.openButton.title = hasPage ? "Open the synced Notion page in a new tab." : "";
-  }
+  const notionPageId = control.root.dataset.notionPageId ?? "";
+  const hasPage = Boolean(notionPageId);
+  control.openButton.hidden = !hasPage;
+  control.openButton.disabled = !hasPage || control.root.dataset.state === "pending";
+  control.openButton.title = hasPage ? "Open the synced Notion page in a new tab." : "";
+}
 
+// Open the synced Notion page in a new browser tab.
 export function openNotionPage(control: ControlNodes): void {
-    const notionPageId = control.root.dataset.notionPageId ?? "";
+  const notionPageId = control.root.dataset.notionPageId ?? "";
 
-    if (!notionPageId) {
-      setControlStatus(control, "No Notion page link is available yet.");
-      return;
-    }
-
-    window.open(createNotionPageUrl(notionPageId), "_blank", "noopener,noreferrer");
+  if (!notionPageId) {
+    setControlStatus(control, "No Notion page link is available yet.");
+    return;
   }
 
+  window.open(createNotionPageUrl(notionPageId), "_blank", "noopener,noreferrer");
+}
+
+// Build the public Notion page URL from a page ID.
 export function createNotionPageUrl(notionPageId: string): string {
-    return `https://www.notion.so/${notionPageId.replace(/-/g, "")}`;
+  return `https://www.notion.so/${notionPageId.replace(/-/g, "")}`;
+}
+
+// Inject the control bar stylesheet once, if not already present.
+export function ensureStyles(): void {
+  if (document.getElementById("chat2notion-style")) {
+    return;
   }
 
-export function ensureStyles(): void {
-    if (document.getElementById("chat2notion-style")) {
-      return;
-    }
-
-    const style = document.createElement("style");
-    style.id = "chat2notion-style";
-    style.textContent = `
+  const style = document.createElement("style");
+  style.id = "chat2notion-style";
+  style.textContent = `
 .${CONTROL_CLASS} {
   display: inline-flex;
   align-items: center;
@@ -263,5 +236,5 @@ export function ensureStyles(): void {
   color: #b3261e;
 }
 `;
-    document.documentElement.append(style);
-  }
+  document.documentElement.append(style);
+}

@@ -1,7 +1,14 @@
+// Background service worker entry point.
+// Routes chat2notion:* runtime messages to their handlers and initializes
+// default configuration on extension install.
+
 import { toErrorMessage } from "./common";
 import { getSyncedMessage, readConfig, writeConfig } from "./storage";
 import { saveUserConfig, testConnection } from "./settings";
-import { syncPair } from "./sync";import { CONFIG_STORAGE_KEY, createDefaultConfig, isRecord, type RuntimeRequest, type RuntimeResponse } from "../shared/config";
+import { syncPair } from "./sync";
+import { CONFIG_STORAGE_KEY, createDefaultConfig, isRecord, type RuntimeRequest, type RuntimeResponse } from "../shared/config";
+
+// On first install, ensure the extension has a default config in storage.
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.local.get(CONFIG_STORAGE_KEY);
 
@@ -10,6 +17,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
+// Listen for runtime messages from the content script and popup.
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   if (!isRuntimeRequest(message)) {
     return false;
@@ -23,6 +31,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   return true;
 });
 
+// Dispatch a typed runtime request to its handler.
 async function handleRuntimeRequest(message: RuntimeRequest): Promise<RuntimeResponse> {
   switch (message.type) {
     case "chat2notion:getConfig":
@@ -40,6 +49,7 @@ async function handleRuntimeRequest(message: RuntimeRequest): Promise<RuntimeRes
   }
 }
 
+// Narrowing guard: is this unknown value a typed RuntimeRequest?
 function isRuntimeRequest(value: unknown): value is RuntimeRequest {
   return isRecord(value) && typeof value.type === "string" && value.type.startsWith("chat2notion:");
 }

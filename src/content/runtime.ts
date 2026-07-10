@@ -1,3 +1,7 @@
+// Safe wrapper around chrome.runtime.sendMessage and chrome.storage.
+// Detects extension context invalidation (e.g., during reload) and
+// gracefully degrades instead of throwing uncaught errors.
+
 import type { RuntimeResponse } from "./types";
 
 const EXTENSION_RELOADED_MESSAGE = "Extension was reloaded. Refresh this AI chat tab.";
@@ -9,6 +13,8 @@ export interface RuntimeClient {
   safeStorageSet(value: Record<string, unknown>): Promise<boolean>;
 }
 
+// Create a runtime client that invalidates itself when the extension context is reloaded.
+// The onInvalidated callback is invoked once to allow UI cleanup.
 export function createRuntimeClient(onInvalidated: () => void): RuntimeClient {
   let extensionContextValid = true;
 
@@ -73,6 +79,7 @@ export function createRuntimeClient(onInvalidated: () => void): RuntimeClient {
   };
 }
 
+// Extract the message string from a RuntimeResponse, falling back to a default.
 export function getResponseMessage(response: RuntimeResponse, fallback: string): string {
   return "message" in response && typeof response.message === "string" ? response.message : fallback;
 }
