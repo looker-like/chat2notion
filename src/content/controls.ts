@@ -77,7 +77,7 @@ export function readControl(root: HTMLDivElement): ControlNodes {
     openButton.innerHTML = OPEN_ICON;
     openButton.title = "Open in Notion";
     openButton.hidden = true;
-    root.insertBefore(openButton, autoButton.parentElement ? autoButton : status.parentElement ? status : null);
+    root.append(openButton);
   }
 
   if (!autoButton.parentElement) {

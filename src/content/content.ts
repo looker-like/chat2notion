@@ -12,7 +12,7 @@ import {
   CONTROL_ATTRIBUTE,
   OBSERVER_DEBOUNCE_MS,
 } from "./constants";
-import type { ChatPair } from "./types";
+import type { ChatPair, ControlNodes } from "./types";
 import { createConversationKey } from "./messages";
 import { buildChatPair, getAssistantMessages } from "./platform";
 import { createRuntimeClient } from "./runtime";
@@ -179,7 +179,9 @@ import { AutoSyncManager } from "./auto-sync";
 
     const insertionTarget = findInsertionTarget(pair.assistant);
     const existing = findExistingControl(pair.assistant, insertionTarget, pair.messageId);
-    const control = existing ? readControl(existing) : createControl(pair);
+    const control = existing
+      ? (readControl(existing) as ControlNodes)
+      : createControl(pair);
 
     if (!existing) {
       insertionTarget.append(control.root);
