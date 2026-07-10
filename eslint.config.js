@@ -12,7 +12,7 @@ export default [
   pluginJs.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    ignores: ["dist/**", "node_modules/**", ".agents/**"],
+    ignores: ["dist/**", "node_modules/**", ".agents/**", "**/*.test-run.js"],
   },
   {
     rules: {
